@@ -1,27 +1,30 @@
+#!/usr/bin/env bash
+# Modified in parallel-search: default base model changed to Qwen3-4B.
+
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 export DATA_DIR='data/nq_search'
 
-WAND_PROJECT='Search-R1'
+WAND_PROJECT='parallel-search'
 
 # export BASE_MODEL='meta-llama/Llama-3.2-3B'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-llama3.2-3b-em
+# export EXPERIMENT_NAME=parallel-search-grpo-llama3.2-3b-em
 # export BASE_MODEL='meta-llama/Llama-3.2-3B-Instruct'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-llama3.2-3b-it-em
+# export EXPERIMENT_NAME=parallel-search-grpo-llama3.2-3b-it-em
 # export BASE_MODEL='meta-llama/Llama-3.1-8B'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-llama3.1-8b-em
+# export EXPERIMENT_NAME=parallel-search-grpo-llama3.1-8b-em
 # export BASE_MODEL='meta-llama/Llama-3.1-8B-Instruct'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-llama3.1-8b-it-em
+# export EXPERIMENT_NAME=parallel-search-grpo-llama3.1-8b-it-em
 
 # export BASE_MODEL='Qwen/Qwen2.5-3B'
 export BASE_MODEL='Qwen/Qwen3-4B-Instruct-2507'
 
-export EXPERIMENT_NAME=nq-search-r1-grpo-qwen2.5-3b-em
+export EXPERIMENT_NAME=parallel-search-grpo-qwen3-4b
 # export BASE_MODEL='Qwen/Qwen2.5-3B-Instruct'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-qwen2.5-3b-it-em
+# export EXPERIMENT_NAME=parallel-search-grpo-qwen2.5-3b-it-em
 # export BASE_MODEL='Qwen/Qwen2.5-7B'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-qwen2.5-7b-em
+# export EXPERIMENT_NAME=parallel-search-grpo-qwen2.5-7b-em
 # export BASE_MODEL='Qwen/Qwen2.5-7B-Instruct'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-qwen2.5-7b-it-em
+# export EXPERIMENT_NAME=parallel-search-grpo-qwen2.5-7b-it-em
 
 # set -x
 export VLLM_ATTENTION_BACKEND=XFORMERS # vllm + qwen2-7b with flash_attn has some issues
