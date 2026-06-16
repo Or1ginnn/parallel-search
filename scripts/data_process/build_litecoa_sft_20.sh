@@ -2,7 +2,7 @@
 set -e
 
 export DEEPSEEK_API_KEY="PUT_YOUR_DEEPSEEK_KEY_HERE"
-export DEEPSEEK_MODEL="deepseek-v4"
+export DEEPSEEK_MODEL="deepseek-v4-pro"
 export DEEPSEEK_BASE_URL="https://api.deepseek.com"
 
 RETRIEVER_URL="http://127.0.0.1:8000/retrieve"

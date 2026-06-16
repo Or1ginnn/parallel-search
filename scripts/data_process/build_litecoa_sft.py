@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 import requests
+from requests import HTTPError
 
 
 SYSTEM_PROMPT = """You are a search-augmented reasoning agent.
@@ -172,7 +173,7 @@ def chat_completion(args, messages):
         url = f"{base_url}/chat/completions"
 
     payload = {
-        "model": args.model or os.environ.get("DEEPSEEK_MODEL") or "deepseek-v4",
+        "model": args.model or os.environ.get("DEEPSEEK_MODEL") or "deepseek-v4-pro",
         "messages": messages,
         "temperature": args.temperature,
         "max_tokens": args.max_tokens,
@@ -188,7 +189,12 @@ def chat_completion(args, messages):
                 json=payload,
                 timeout=args.api_timeout,
             )
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except HTTPError as exc:
+                raise RuntimeError(
+                    f"DeepSeek API error {response.status_code}: {response.text}"
+                ) from exc
             data = response.json()
             return data["choices"][0]["message"]["content"].strip()
         except Exception:
@@ -500,7 +506,7 @@ def main():
         "accepted": len(accepted),
         "rejected": len(rejected),
         "elapsed_sec": round(time.time() - started, 3),
-        "model": args.model or os.environ.get("DEEPSEEK_MODEL") or "deepseek-v4",
+        "model": args.model or os.environ.get("DEEPSEEK_MODEL") or "deepseek-v4-pro",
         "retriever_url": args.retriever_url,
         "output": str(output),
         "rejected_output": str(rejected_output),
