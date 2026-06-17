@@ -50,6 +50,7 @@ Do not answer the question.
 Do not generate <information>.
 Do not use placeholder queries such as query1 or query2.
 Do not include XML tags inside a query.
+Do not add years, names, entities, or constraints that are not present in the question unless they are necessary generic search terms.
 Question: {question}"""
 
 
@@ -79,6 +80,10 @@ SEARCH_RE = re.compile(r"<search>(.*?)</search>", re.DOTALL)
 PLAN_RE = re.compile(r"<plan>(.*?)</plan>", re.DOTALL)
 ANSWER_RE = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
 INFORMATION_RE = re.compile(r"</?information>", re.IGNORECASE)
+
+
+def log(message):
+    print(message, flush=True)
 
 
 def normalize_answer(text):
@@ -160,7 +165,7 @@ def load_examples(args):
     return rows
 
 
-def chat_completion(args, messages):
+def chat_completion(args, messages, label="teacher"):
     load_env_file(args.env_file)
     api_key = args.api_key or os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
@@ -180,6 +185,7 @@ def chat_completion(args, messages):
     }
     for attempt in range(args.api_retries + 1):
         try:
+            log(f"[api] {label} attempt={attempt + 1}/{args.api_retries + 1}")
             response = requests.post(
                 url,
                 headers={
@@ -196,10 +202,12 @@ def chat_completion(args, messages):
                     f"DeepSeek API error {response.status_code}: {response.text}"
                 ) from exc
             data = response.json()
+            log(f"[api] {label} ok")
             return data["choices"][0]["message"]["content"].strip()
-        except Exception:
+        except Exception as exc:
             if attempt >= args.api_retries:
                 raise
+            log(f"[api] {label} retry_after_error={type(exc).__name__}: {exc}")
             time.sleep(args.retry_sleep * (attempt + 1))
     raise RuntimeError("unreachable")
 
@@ -339,7 +347,8 @@ def build_one(args, example):
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": FIRST_TURN_PROMPT.format(question=question)},
     ]
-    first_text = chat_completion(args, first_messages)
+    log(f"[build] {example['id']} first_turn_teacher")
+    first_text = chat_completion(args, first_messages, label=f"{example['id']}:first_turn")
     queries, first_warnings = validate_first_turn(first_text, args.max_queries_per_turn)
     warnings.extend(first_warnings)
     if first_warnings and args.strict:
@@ -359,6 +368,7 @@ def build_one(args, example):
                 raise ValueError(";".join(query_warnings))
 
         queries_by_turn.append(turn_queries)
+        log(f"[build] {example['id']} retrieve_turn={turn_idx + 1} queries={len(turn_queries)}")
         results = retrieve(args, turn_queries)
         information = format_information(turn_queries, results)
         information_blocks.append(information)
@@ -376,7 +386,8 @@ def build_one(args, example):
                 ),
             },
         ]
-        next_text = chat_completion(args, next_messages)
+        log(f"[build] {example['id']} next_turn_teacher turn={turn_idx + 1}")
+        next_text = chat_completion(args, next_messages, label=f"{example['id']}:next_turn_{turn_idx + 1}")
         assistant_parts.append(next_text)
 
         if INFORMATION_RE.search(next_text):
@@ -426,13 +437,13 @@ def write_jsonl(path, rows):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input_jsonl", default="docs/phase2/phase2_smoke_samples.jsonl")
+    parser.add_argument("--input_jsonl", default=None)
     parser.add_argument("--input_parquet", default=None)
     parser.add_argument("--data_source", default="nq")
     parser.add_argument("--split", default="train")
-    parser.add_argument("--output", default="data/litecoa_sft/litecoa_sft_20.jsonl")
-    parser.add_argument("--rejected_output", default="data/litecoa_sft/litecoa_sft_20_rejected.jsonl")
-    parser.add_argument("--report_output", default="data/litecoa_sft/litecoa_sft_20_report.json")
+    parser.add_argument("--output", default="data/litecoa_sft/litecoa_20/litecoa_sft_20.jsonl")
+    parser.add_argument("--rejected_output", default="data/litecoa_sft/litecoa_20/litecoa_sft_20_rejected.jsonl")
+    parser.add_argument("--report_output", default="data/litecoa_sft/litecoa_20/litecoa_sft_20_report.json")
     parser.add_argument("--target_count", type=int, default=20)
     parser.add_argument("--max_candidates", type=int, default=50)
     parser.add_argument("--seed", type=int, default=20260616)
@@ -467,6 +478,7 @@ def main():
     examples = load_examples(args)
     random.shuffle(examples)
     examples = examples[: args.max_candidates]
+    log(f"[init] loaded_candidates={len(examples)} target_count={args.target_count}")
 
     accepted = []
     rejected = []
@@ -474,6 +486,7 @@ def main():
     for idx, example in enumerate(examples, start=1):
         if len(accepted) >= args.target_count:
             break
+        log(f"[{idx}/{len(examples)}] start: {example.get('id')}")
         try:
             record = build_one(args, example)
             if should_accept(record, args):
@@ -493,7 +506,7 @@ def main():
                 }
             )
             status = "error"
-        print(f"[{idx}/{len(examples)}] {status}: {example.get('id')} accepted={len(accepted)}")
+        log(f"[{idx}/{len(examples)}] {status}: {example.get('id')} accepted={len(accepted)}")
 
     output = Path(args.output)
     rejected_output = Path(args.rejected_output)
@@ -521,7 +534,7 @@ def main():
     }
     report_output.parent.mkdir(parents=True, exist_ok=True)
     report_output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    log(json.dumps(report, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
