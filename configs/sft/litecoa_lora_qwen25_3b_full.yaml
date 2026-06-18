@@ -1,0 +1,42 @@
+### model
+model_name_or_path: /path/to/Qwen2.5-3B  # 基座模型路径，远程上改成你本地的 Qwen2.5-3B 目录
+trust_remote_code: true                  # 允许加载模型仓库里的自定义代码，Qwen 系列通常建议打开
+
+### method
+stage: sft                               # 训练阶段：监督微调
+do_train: true                           # 执行训练
+finetuning_type: lora                    # 使用 LoRA 微调，不做全参微调
+lora_target: all                         # 对所有支持的线性层挂 LoRA，简单稳妥
+lora_rank: 64                            # LoRA rank，正式训练用 64，给格式冷启动更大适配容量
+lora_alpha: 128                          # LoRA 缩放系数，通常设为 rank 的 2 倍
+lora_dropout: 0.05                       # LoRA dropout，轻微正则化，防止小数据过拟合
+
+### dataset
+dataset_dir: data/litecoa_sft/litecoa_1000  # 数据目录，里面有 dataset_info.json 和 jsonl
+dataset: litecoa_sft_1000_v1                # dataset_info.json 里注册的数据集名字
+template: qwen                              # 使用 Qwen chat template
+cutoff_len: 16384                           # 最大序列长度，避免长 information 被截断
+overwrite_cache: true                       # 重新处理数据缓存，避免旧缓存影响
+preprocessing_num_workers: 4                # 数据预处理并行 worker 数，1000 条数据用 4 就够
+
+### output
+output_dir: outputs/sft/litecoa_lora_qwen25_3b_full  # full 输出目录
+report_to: wandb                                     # 把训练日志上报到 Weights & Biases
+run_name: litecoa_lora_qwen25_3b_full                # wandb run 名字
+logging_steps: 5                                     # full 每 5 步记录一次日志
+save_steps: 100                                      # 每 100 步保存一次
+plot_loss: true                                      # 保存 loss 曲线
+overwrite_output_dir: true                           # 允许覆盖同名输出目录
+
+### train
+per_device_train_batch_size: 4          # 每张 GPU 每次放 4 条样本；2 张 A800 80G 可以先试这个
+gradient_accumulation_steps: 2          # 有效 batch size = GPU 数 2 × micro batch 4 × 累积 2 = 16
+learning_rate: 5.0e-5                   # LoRA 学习率
+num_train_epochs: 2.0                   # full 跑 2 个 epoch，先做冷启动不过训太久
+lr_scheduler_type: cosine               # 余弦学习率衰减
+warmup_ratio: 0.03                      # 前 3% step 做 warmup
+bf16: true                              # 使用 bf16，适合 A100/H100/较新 GPU
+ddp_timeout: 180000000                  # 分布式训练超时时间，设大避免长初始化误报
+
+### eval
+val_size: 0.0                           # 不切验证集，1000 条数据全部用于训练

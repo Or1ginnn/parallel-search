@@ -1,0 +1,20 @@
+{
+  "target_count": 1000,
+  "accepted": 1000,
+  "rejected": 412,
+  "processed": 1412,
+  "elapsed_sec": 7918.285,
+  "model": "deepseek-v4-pro",
+  "retriever_url": "http://127.0.0.1:8000/retrieve",
+  "output": "data/litecoa_sft/litecoa_sft_1000.jsonl",
+  "rejected_output": "data/litecoa_sft/litecoa_sft_1000_rejected.jsonl",
+  "status": "complete",
+  "settings": {
+    "max_turns": 2,
+    "max_queries_per_turn": 3,
+    "topk": 3,
+    "require_answer_match": true,
+    "require_evidence_hit": true,
+    "strict": true
+  }
+}

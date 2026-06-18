@@ -1,0 +1,15 @@
+{
+  "litecoa_sft_1000_v1": {
+    "file_name": "litecoa_sft_1000_v1_llamafactory.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant"
+    }
+  }
+}
