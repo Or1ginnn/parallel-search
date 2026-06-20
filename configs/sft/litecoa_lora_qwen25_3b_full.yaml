@@ -29,8 +29,8 @@ plot_loss: true                                      # 保存 loss 曲线
 overwrite_output_dir: true                           # 允许覆盖同名输出目录
 
 ### train
-per_device_train_batch_size: 4          # 每张 GPU 每次放 4 条样本；2 张 A800 80G 可以先试这个
-gradient_accumulation_steps: 2          # 有效 batch size = GPU 数 2 × micro batch 4 × 累积 2 = 16
+per_device_train_batch_size: 2          # 每张 GPU 每次放 2 条样本；2 张 A800 80G 下有效 batch size 为 8
+gradient_accumulation_steps: 2          # 有效 batch size = GPU 数 2 × micro batch 2 × 累积 2 = 8
 learning_rate: 5.0e-5                   # LoRA 学习率
 num_train_epochs: 2.0                   # full 跑 2 个 epoch，先做冷启动不过训太久
 lr_scheduler_type: cosine               # 余弦学习率衰减
