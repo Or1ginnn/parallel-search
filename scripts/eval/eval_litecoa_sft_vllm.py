@@ -153,13 +153,22 @@ def load_samples(args):
     frame = pd.read_parquet(args.input_parquet)
     rows = []
     for idx, item in frame.iterrows():
+        gold_answers = item.get("golden_answers")
+        if gold_answers is None:
+            gold_answers = item.get("gold_answer")
+        if hasattr(gold_answers, "tolist"):
+            gold_answers = gold_answers.tolist()
+        if gold_answers is None:
+            gold_answers = []
+        elif isinstance(gold_answers, str):
+            gold_answers = [gold_answers]
+        elif not isinstance(gold_answers, (list, tuple)):
+            gold_answers = [gold_answers]
         rows.append(
             {
                 "id": item.get("id") or f"sample_{idx}",
                 "question": item["question"],
-                "gold_answer": item.get("golden_answers")
-                or item.get("gold_answer")
-                or [],
+                "gold_answer": list(gold_answers),
             }
         )
     return rows
@@ -167,6 +176,11 @@ def load_samples(args):
 
 def filter_supported_kwargs(cls, kwargs):
     supported = inspect.signature(cls).parameters
+    if any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in supported.values()
+    ):
+        return kwargs
     return {key: value for key, value in kwargs.items() if key in supported}
 
 
@@ -231,66 +245,54 @@ def build_sampling_params(args):
     return SamplingParams(**params)
 
 
-def generate_once(args, llm, lora_request, prompt):
-    sampling_params = build_sampling_params(args)
+def generate_batch(args, llm, lora_request, prompts):
+    if not prompts:
+        return []
     outputs = llm.generate(
-        [prompt],
-        sampling_params,
+        prompts,
+        build_sampling_params(args),
         lora_request=lora_request,
         use_tqdm=False,
     )
-    text = outputs[0].outputs[0].text
-    text = truncate_at_first_action(text)
-    return text
+    return [truncate_at_first_action(output.outputs[0].text) for output in outputs]
 
 
-def run_one(args, tokenizer, llm, lora_request, sample):
+def new_state(args, tokenizer, sample):
     question = normalize_question(sample["question"])
     gold_answers = sample.get("gold_answer") or []
     if isinstance(gold_answers, str):
         gold_answers = [gold_answers]
-
-    prompt = build_prompt(tokenizer, question, args.max_queries_per_turn)
-    trajectory_parts = []
-    queries_by_turn = []
-    information_blocks = []
-    parser_warnings = []
-    agent_warnings = []
-    error = None
-
-    try:
-        for _ in range(args.max_turns):
-            output_text = generate_once(args, llm, lora_request, prompt)
-            trajectory_parts.append(output_text)
-
-            if "<information>" in output_text or "</information>" in output_text:
-                parser_warnings.append("model generated information tag")
-
-            if ANSWER_RE.search(output_text):
-                break
-
-            queries, warnings = parse_queries(output_text, args.max_queries_per_turn)
-            parser_warnings.extend(warnings)
-            if not queries:
-                agent_warnings.append("no valid query found")
-                break
-
-            results = retrieve(args, queries)
-            information = format_information(queries, results)
-            queries_by_turn.append(queries)
-            information_blocks.append(information)
-            trajectory_parts.append(information)
-            prompt += f"\n\n{output_text}{information}\n\n"
-        else:
-            agent_warnings.append("max_turns_exceeded")
-    except Exception:
-        error = traceback.format_exc()
-
-    generated_text = "\n\n".join(trajectory_parts)
-    final_answer = extract_answer(generated_text)
     return {
         "id": sample.get("id"),
         "question": question,
+        "gold_answer": gold_answers,
+        "prompt": build_prompt(tokenizer, question, args.max_queries_per_turn),
+        "trajectory_parts": [],
+        "queries_by_turn": [],
+        "parser_warnings": [],
+        "agent_warnings": [],
+        "error": None,
+        "done": False,
+    }
+
+
+def append_generation(state, output_text):
+    state["trajectory_parts"].append(output_text)
+    if "<information>" in output_text or "</information>" in output_text:
+        state["parser_warnings"].append("model generated information tag")
+    if ANSWER_RE.search(output_text):
+        state["done"] = True
+        return True
+    return False
+
+
+def state_to_record(state):
+    generated_text = "\n\n".join(state["trajectory_parts"])
+    final_answer = extract_answer(generated_text)
+    gold_answers = state["gold_answer"]
+    return {
+        "id": state["id"],
+        "question": state["question"],
         "gold_answer": gold_answers,
         "final_answer": final_answer,
         "answer_em": em_check(final_answer, gold_answers) if gold_answers else None,
@@ -298,17 +300,88 @@ def run_one(args, tokenizer, llm, lora_request, sample):
         "has_answer": bool(ANSWER_RE.search(generated_text)),
         "has_plan": bool(PLAN_RE.search(generated_text)),
         "plan_count": len(PLAN_RE.findall(generated_text)),
-        "search_turns": len(queries_by_turn),
-        "query_count": sum(len(qs) for qs in queries_by_turn),
-        "queries_by_turn": queries_by_turn,
+        "search_turns": len(state["queries_by_turn"]),
+        "query_count": sum(len(qs) for qs in state["queries_by_turn"]),
+        "queries_by_turn": state["queries_by_turn"],
         "generated_information": any(
-            "model generated information tag" == item for item in parser_warnings
+            "model generated information tag" == item for item in state["parser_warnings"]
         ),
-        "parser_warnings": parser_warnings,
-        "agent_warnings": agent_warnings,
-        "error": error,
+        "parser_warnings": state["parser_warnings"],
+        "agent_warnings": state["agent_warnings"],
+        "error": state["error"],
         "trajectory": generated_text,
     }
+
+
+def run_batch(args, tokenizer, llm, lora_request, samples):
+    states = [new_state(args, tokenizer, sample) for sample in samples]
+
+    try:
+        for _ in range(args.max_turns):
+            active = [state for state in states if not state["done"] and not state["error"]]
+            outputs = generate_batch(
+                args,
+                llm,
+                lora_request,
+                [state["prompt"] for state in active],
+            )
+
+            pending = []
+            flat_queries = []
+            for state, output_text in zip(active, outputs):
+                if append_generation(state, output_text):
+                    continue
+
+                queries, warnings = parse_queries(output_text, args.max_queries_per_turn)
+                state["parser_warnings"].extend(warnings)
+                if not queries:
+                    state["agent_warnings"].append("no valid query found")
+                    state["done"] = True
+                    continue
+
+                start = len(flat_queries)
+                flat_queries.extend(queries)
+                pending.append((state, output_text, queries, start))
+
+            if not pending:
+                continue
+
+            try:
+                flat_results = retrieve(args, flat_queries)
+            except Exception:
+                error = traceback.format_exc()
+                for state, _, _, _ in pending:
+                    state["error"] = error
+                    state["done"] = True
+                continue
+
+            for state, output_text, queries, start in pending:
+                results = flat_results[start : start + len(queries)]
+                information = format_information(queries, results)
+                state["queries_by_turn"].append(queries)
+                state["trajectory_parts"].append(information)
+                state["prompt"] += f"\n\n{output_text}{information}\n\n"
+
+        final_active = [state for state in states if not state["done"] and not state["error"]]
+        outputs = generate_batch(
+            args,
+            llm,
+            lora_request,
+            [state["prompt"] for state in final_active],
+        )
+        for state, output_text in zip(final_active, outputs):
+            append_generation(state, output_text)
+            if not state["done"]:
+                state["agent_warnings"].append("max_turns_exceeded")
+                state["done"] = True
+    except Exception:
+        error = traceback.format_exc()
+        for state in states:
+            if not state["done"]:
+                state["error"] = error
+                state["done"] = True
+
+    return [state_to_record(state) for state in states]
 
 
 def summarize(records):
@@ -361,10 +434,11 @@ def main():
     parser.add_argument("--input_jsonl", default=None)
     parser.add_argument("--output_dir", default="outputs/sft/litecoa_sft_eval_vllm")
     parser.add_argument("--num_samples", type=int, default=20)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=20260618)
     parser.add_argument("--retriever_url", default="http://127.0.0.1:8000/retrieve")
     parser.add_argument("--topk", type=int, default=3)
-    parser.add_argument("--max_turns", type=int, default=2)
+    parser.add_argument("--max_turns", type=int, default=3)
     parser.add_argument("--max_queries_per_turn", type=int, default=3)
     parser.add_argument("--max_new_tokens", type=int, default=1024)
     parser.add_argument("--temperature", type=float, default=1.0)
@@ -386,6 +460,7 @@ def main():
     log(f"[config] adapter={args.adapter}")
     log(f"[config] retriever_url={args.retriever_url}")
     log(f"[config] num_samples={args.num_samples}")
+    log(f"[config] batch_size={args.batch_size}")
     log(f"[config] max_turns={args.max_turns}")
     log(f"[config] do_sample={args.do_sample}")
     log(f"[config] temperature={args.temperature if args.do_sample else 0.0}")
@@ -393,21 +468,24 @@ def main():
 
     samples = load_samples(args)
     random.Random(args.seed).shuffle(samples)
-    samples = samples[: args.num_samples]
+    if args.num_samples >= 0:
+        samples = samples[: args.num_samples]
     log(f"[data] loaded_eval_samples={len(samples)}")
 
     tokenizer, llm, lora_request = load_backend(args)
     records = []
-    for idx, sample in enumerate(samples, start=1):
-        log(f"[eval] {idx}/{len(samples)} id={sample.get('id')}")
-        record = run_one(args, tokenizer, llm, lora_request, sample)
-        records.append(record)
+    for start in range(0, len(samples), args.batch_size):
+        batch = samples[start : start + args.batch_size]
+        log(f"[eval] batch {start + 1}-{start + len(batch)}/{len(samples)}")
+        batch_records = run_batch(args, tokenizer, llm, lora_request, batch)
+        records.extend(batch_records)
+        progress = summarize(records)
         log(
-            "[eval] result "
-            f"answer={record['has_answer']} plan_count={record['plan_count']} "
-            f"turns={record['search_turns']} queries={record['query_count']} "
-            f"warnings={len(record['parser_warnings']) + len(record['agent_warnings'])} "
-            f"error={bool(record['error'])}"
+            "[eval] progress "
+            f"done={len(records)} errors={progress['errors']} "
+            f"answer={progress['answer_count']} "
+            f"em={progress['answer_em']}/{progress['gold_count']} "
+            f"format={progress['format_valid']}"
         )
 
     summary = summarize(records)

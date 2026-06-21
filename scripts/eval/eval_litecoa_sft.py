@@ -171,13 +171,22 @@ def load_samples(args):
     frame = pd.read_parquet(args.input_parquet)
     rows = []
     for idx, item in frame.iterrows():
+        gold_answers = item.get("golden_answers")
+        if gold_answers is None:
+            gold_answers = item.get("gold_answer")
+        if hasattr(gold_answers, "tolist"):
+            gold_answers = gold_answers.tolist()
+        if gold_answers is None:
+            gold_answers = []
+        elif isinstance(gold_answers, str):
+            gold_answers = [gold_answers]
+        elif not isinstance(gold_answers, (list, tuple)):
+            gold_answers = [gold_answers]
         rows.append(
             {
                 "id": item.get("id") or f"sample_{idx}",
                 "question": item["question"],
-                "gold_answer": item.get("golden_answers")
-                or item.get("gold_answer")
-                or [],
+                "gold_answer": list(gold_answers),
             }
         )
     return rows
@@ -293,7 +302,12 @@ def run_one(args, tokenizer, model, stopping, sample):
             trajectory_parts.append(information)
             prompt += f"\n\n{output_text}{information}\n\n"
         else:
-            agent_warnings.append("max_turns_exceeded")
+            output_text, eos_hit = generate_once(args, tokenizer, model, stopping, prompt)
+            trajectory_parts.append(output_text)
+            if "<information>" in output_text or "</information>" in output_text:
+                parser_warnings.append("model generated information tag")
+            if not ANSWER_RE.search(output_text):
+                agent_warnings.append("max_turns_exceeded")
     except Exception:
         error = traceback.format_exc()
 
@@ -375,7 +389,7 @@ def main():
     parser.add_argument("--seed", type=int, default=20260618)
     parser.add_argument("--retriever_url", default="http://127.0.0.1:8000/retrieve")
     parser.add_argument("--topk", type=int, default=3)
-    parser.add_argument("--max_turns", type=int, default=2)
+    parser.add_argument("--max_turns", type=int, default=3)
     parser.add_argument("--max_queries_per_turn", type=int, default=3)
     parser.add_argument("--max_new_tokens", type=int, default=1024)
     parser.add_argument("--temperature", type=float, default=0.2)
