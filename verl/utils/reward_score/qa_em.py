@@ -74,11 +74,12 @@ def extract_solution(solution_str):
     match = re.finditer(answer_pattern, solution_str, re.DOTALL)
     matches = list(match)
     
-    # If there are 0 or exactly 1 matches, return None
-    if len(matches) <= 1:
+    # If there are no answers, return None.
+    if not matches:
         return None
     
-    # If there are 2 or more matches, return the last one
+    # Return the last answer. This works for both the original Search-R1 prompt
+    # with an answer example and LiteCoA prompts without an answer example.
     return matches[-1].group(1).strip()
 
 

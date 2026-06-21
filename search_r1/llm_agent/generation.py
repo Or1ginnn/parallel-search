@@ -21,6 +21,7 @@ class GenerationConfig:
     no_think_rl: bool=False
     search_url: str = None
     topk: int = 3
+    max_queries_per_turn: int = 3
 
 class LLMGenerationManager:
     def __init__(
@@ -366,13 +367,24 @@ class LLMGenerationManager:
         """
         cur_actions, contents = self.postprocess_predictions(predictions)
         next_obs, dones, valid_action, is_search = [], [], [], []
-        
-        search_queries = [content for action, content in zip(cur_actions, contents) if action == 'search']
+
+        search_query_groups = []
+        flat_search_queries = []
+        for action, content, active in zip(cur_actions, contents, active_mask):
+            if action != 'search' or not active:
+                search_query_groups.append([])
+                continue
+            queries = self.parse_search_queries(content)
+            search_query_groups.append(queries)
+            flat_search_queries.extend(queries)
+
         if do_search:
-            search_results = self.batch_search(search_queries)
-            assert len(search_results) == sum([1 for action in cur_actions if action == 'search'])
+            search_results = self.batch_search(flat_search_queries)
+            assert len(search_results) == len(flat_search_queries)
         else:
-            search_results = [''] * sum([1 for action in cur_actions if action == 'search'])
+            search_results = [''] * len(flat_search_queries)
+
+        search_result_offset = 0
 
         for i, (action, active) in enumerate(zip(cur_actions, active_mask)):
             
@@ -388,10 +400,28 @@ class LLMGenerationManager:
                     valid_action.append(1)
                     is_search.append(0)
                 elif action == 'search':
-                    next_obs.append(f'\n\n<information>{search_results.pop(0).strip()}</information>\n\n')
-                    dones.append(0)
-                    valid_action.append(1)
-                    is_search.append(1)
+                    queries = search_query_groups[i]
+                    if queries:
+                        cur_search_results = search_results[
+                            search_result_offset: search_result_offset + len(queries)
+                        ]
+                        search_result_offset += len(queries)
+                        if do_search:
+                            next_obs.append(
+                                f'\n\n{self._search_results2information(queries, cur_search_results).strip()}\n\n'
+                            )
+                        else:
+                            next_obs.append('')
+                        dones.append(0)
+                        valid_action.append(1)
+                        is_search.append(1)
+                    else:
+                        next_obs.append(f'\nMy previous search action is invalid. \
+I should put one or more valid queries between <search> and </search>. \
+Multiple independent queries should be separated by "||". Let me try again.\n')
+                        dones.append(0)
+                        valid_action.append(0)
+                        is_search.append(0)
                 else:
                     next_obs.append(f'\nMy previous action is invalid. \
 If I want to search, I should put the query between <search> and </search>. \
@@ -400,9 +430,28 @@ If I want to give the final answer, I should put the answer between <answer> and
                     valid_action.append(0)
                     is_search.append(0)
             
-        assert len(search_results) == 0
+        assert search_result_offset == len(search_results)
             
         return next_obs, dones, valid_action, is_search
+
+    def parse_search_queries(self, content: str) -> List[str]:
+        """Parse one <search> action into one or more LiteCoA queries."""
+        queries = []
+        seen = set()
+        for item in content.split('||'):
+            query = ' '.join(item.strip().split())
+            if not query:
+                continue
+            if '<' in query or '>' in query:
+                continue
+            key = query.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            queries.append(query)
+            if len(queries) >= self.config.max_queries_per_turn:
+                break
+        return queries
 
     def postprocess_predictions(self, predictions: List[Any]) -> Tuple[List[int], List[bool]]:
         """
@@ -441,11 +490,13 @@ If I want to give the final answer, I should put the answer between <answer> and
         Args:
             queries: queries to call the search engine
         Returns:
-            search results which is concatenated into a string
+            raw search results for each query
         """
+        if not queries:
+            return []
         results = self._batch_search(queries)['result']
         
-        return [self._passages2string(result) for result in results]
+        return results
 
     def _batch_search(self, queries):
         
@@ -467,3 +518,11 @@ If I want to give the final answer, I should put the answer between <answer> and
             format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
 
         return format_reference
+
+    def _search_results2information(self, queries: List[str], search_results: List[List[Dict[str, Any]]]) -> str:
+        information = '<information>'
+        for query, retrieval_result in zip(queries, search_results):
+            information += f'\n[Query] {query}\n'
+            information += self._passages2string(retrieval_result)
+        information += '</information>'
+        return information

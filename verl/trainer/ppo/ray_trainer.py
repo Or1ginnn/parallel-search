@@ -452,6 +452,7 @@ class RayPPOTrainer(object):
             no_think_rl=self.config.algorithm.no_think_rl,
             search_url = self.config.retriever.url,
             topk = self.config.retriever.topk,
+            max_queries_per_turn = self.config.retriever.get('max_queries_per_turn', 3),
         )
 
         # Agent config preparation
@@ -683,6 +684,7 @@ class RayPPOTrainer(object):
             no_think_rl=self.config.algorithm.no_think_rl,
             search_url = self.config.retriever.url,
             topk = self.config.retriever.topk,
+            max_queries_per_turn = self.config.retriever.get('max_queries_per_turn', 3),
         )
 
         generation_manager = LLMGenerationManager(

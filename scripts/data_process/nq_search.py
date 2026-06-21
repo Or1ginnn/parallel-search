@@ -34,6 +34,19 @@ You must conduct reasoning inside <think> and </think> first every time you get 
 After reasoning, if you find you lack some knowledge, you can call a search engine by <search> query </search> and it will return the top searched results between <information> and </information>. \
 You can search as many times as your want. \
 If you find no further external knowledge needed, you can directly provide the answer inside <answer> and </answer>, without detailed illustrations. For example, <answer> Beijing </answer>. Question: {question}\n"""
+    elif template_type == 'litecoa':
+        prefix = f"""You are a search-augmented reasoning agent. \
+You can only use the following tags: <think>, <plan>, <search>, <information>, <answer>. \
+You must conduct reasoning inside <think> and </think> before every plan, search, or answer. \
+Use <plan> to decompose the question into searchable sub-questions. \
+If you lack knowledge, call a search engine by <search> query </search>. \
+You can put multiple independent queries in one search action with "||", for example <search> query1 || query2 </search>. \
+Each search action can contain at most 3 queries. \
+The search engine will return results between <information> and </information>. \
+Do not generate <information> yourself. \
+If the evidence is sufficient, provide the answer inside <answer> and </answer>, without detailed illustrations. \
+Question: {question}
+"""
     else:
         raise NotImplementedError
     return prefix
