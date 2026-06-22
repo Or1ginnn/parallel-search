@@ -436,11 +436,10 @@ class RayPPOTrainer(object):
     def _validate(self):
         """
         The training loop of PPO with global metric computation.
-        Accumulates metrics across all batches before computing final statistics.
+        Streams per-sample scores across batches before computing final statistics.
         """
-        import torch
-        reward_tensor_lst = []
-        data_source_lst = []
+        import gc
+        data_source_reward = defaultdict(list)
 
         gen_config = GenerationConfig(
             max_turns=self.config.max_turns,
@@ -464,7 +463,7 @@ class RayPPOTrainer(object):
         )
 
         if not self.config.do_search:
-            for test_data in self.val_dataloader:
+            for batch_idx, test_data in enumerate(self.val_dataloader):
                 test_batch = DataProto.from_single_dict(test_data)
 
                 # we only do validation on rule-based rm
@@ -493,10 +492,17 @@ class RayPPOTrainer(object):
                 # for certain reward function (e.g. sandbox), the generation can overlap with reward
                 reward_tensor = self.val_reward_fn(test_batch)
 
-                reward_tensor_lst.append(reward_tensor)
-                data_source_lst.append(test_batch.non_tensor_batch.get('data_source', ['unknown'] * reward_tensor.shape[0]))
+                batch_scores = reward_tensor.sum(-1).detach().cpu().tolist()
+                data_sources = test_batch.non_tensor_batch.get('data_source', ['unknown'] * len(batch_scores))
+                for data_source, score in zip(data_sources, batch_scores):
+                    data_source_reward[data_source].append(float(score))
+
+                del reward_tensor, test_batch, test_gen_batch
+                del test_gen_batch_padded, test_output_gen_batch_padded, test_output_gen_batch
+                if batch_idx % 10 == 0:
+                    gc.collect()
         else:
-            for batch_dict in self.val_dataloader:
+            for batch_idx, batch_dict in enumerate(self.val_dataloader):
                 timing_raw = {}
                 test_batch: DataProto = DataProto.from_single_dict(batch_dict)
                 # test_batch = test_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n_agent, interleave=True)
@@ -527,19 +533,15 @@ class RayPPOTrainer(object):
                     # for certain reward function (e.g. sandbox), the generation can overlap with reward
                     reward_tensor = self.val_reward_fn(test_batch)
 
-                    reward_tensor_lst.append(reward_tensor)
-                    data_source_lst.append(test_batch.non_tensor_batch.get('data_source', ['unknown'] * reward_tensor.shape[0]))
+                    batch_scores = reward_tensor.sum(-1).detach().cpu().tolist()
+                    data_sources = test_batch.non_tensor_batch.get('data_source', ['unknown'] * len(batch_scores))
+                    for data_source, score in zip(data_sources, batch_scores):
+                        data_source_reward[data_source].append(float(score))
 
-        reward_tensor = torch.cat([rw.sum(-1) for rw in reward_tensor_lst], dim=0).cpu()  # (batch_size,)
-        # reward_tensor = torch.cat(reward_tensor_lst, dim=0).sum(-1).cpu()  # (batch_size,)
-        data_sources = np.concatenate(data_source_lst, axis=0)
-        # evaluate test_score based on data source
-        data_source_reward = {}
-        for i in range(reward_tensor.shape[0]):
-            data_source = data_sources[i]
-            if data_source not in data_source_reward:
-                data_source_reward[data_source] = []
-            data_source_reward[data_source].append(reward_tensor[i].item())
+                    del reward_tensor, test_batch, test_gen_batch
+                    del final_gen_batch_output, first_input_ids
+                    if batch_idx % 10 == 0:
+                        gc.collect()
 
         metric_dict = {}
         for data_source, rewards in data_source_reward.items():
