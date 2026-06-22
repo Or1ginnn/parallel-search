@@ -255,13 +255,31 @@ Doc 1(Title: Title q3) Body for q3
 python -m py_compile search_r1/llm_agent/generation.py verl/trainer/ppo/ray_trainer.py
 ```
 
-## 7. 下一步
+## 7. 当前状态
 
-Rollout 多 query 支持完成后，Phase 4 后续还需要：
+已完成：
 
 ```text
-1. 改 LiteCoA prompt / data_process，生成 LiteCoA GRPO train/test parquet。
-2. 确认 reward 的 <answer> 抽取仍兼容 LiteCoA prompt。
-3. 新增 LiteCoA GRPO smoke 启动脚本。
-4. 先跑 val_only smoke，再跑极小步数 GRPO。
+1. LiteCoA multi-query rollout 改造。
+2. LiteCoA prompt / data_process 改造。
+3. reward 单 <answer> 抽取兼容。
+4. LiteCoA NQ train/test parquet 生成。
+5. 10-step LiteCoA-GRPO smoke 跑通。
 ```
+
+Smoke 结果详见：
+
+```text
+docs/phase4_litecoa_grpo_smoke_report.md
+```
+
+已固化启动脚本：
+
+```text
+scripts/train/train_grpo_litecoa_smoke.sh
+scripts/train/train_grpo_litecoa_qwen25_3b.sh
+```
+
+其中 smoke 脚本用于服务器同步代码后的闭环验证；full 脚本用于正式 LiteCoA-GRPO 训练，训练中主要看 W&B reward / validation 曲线，稳定后手动停止。
+
+下一步进入 Phase 5 path-aware reward 设计。

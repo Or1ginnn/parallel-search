@@ -647,10 +647,104 @@ class RayPPOTrainer(object):
         # reorder based on index. The data will be automatically equally partitioned by dispatch function
         global_idx = torch.tensor([j for partition in global_partition_lst for j in partition])
         batch.reorder(global_idx)
+        for key, val in list(batch.meta_info.items()):
+            if isinstance(val, list) and len(val) == batch_size:
+                batch.meta_info[key] = [val[i] for i in global_idx.tolist()]
         global_balance_stats = log_seqlen_unbalance(seqlen_list=global_seqlen_lst,
                                                     partitions=global_partition_lst,
                                                     prefix=logging_prefix)
         metrics.update(global_balance_stats)
+
+    def _json_safe(self, value):
+        if isinstance(value, np.ndarray):
+            return self._json_safe(value.tolist())
+        if isinstance(value, np.generic):
+            return value.item()
+        if isinstance(value, dict):
+            return {key: self._json_safe(val) for key, val in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [self._json_safe(item) for item in value]
+        return value
+
+    def _decode_prompt_response(self, batch: DataProto, idx: int):
+        prompt_ids = batch.batch['prompts'][idx]
+        response_ids = batch.batch['responses'][idx]
+        attention_mask = batch.batch['attention_mask'][idx]
+
+        prompt_length = prompt_ids.shape[-1]
+        response_length = response_ids.shape[-1]
+        valid_prompt_length = int(attention_mask[:prompt_length].sum().item())
+        valid_response_length = int(attention_mask[-response_length:].sum().item())
+
+        valid_prompt_ids = prompt_ids[-valid_prompt_length:] if valid_prompt_length > 0 else prompt_ids[:0]
+        valid_response_ids = response_ids[:valid_response_length] if valid_response_length > 0 else response_ids[:0]
+
+        prompt = self.tokenizer.decode(valid_prompt_ids, skip_special_tokens=True)
+        trajectory = self.tokenizer.decode(valid_response_ids, skip_special_tokens=True)
+        return prompt, trajectory, valid_prompt_length, valid_response_length
+
+    def _get_by_index(self, values, idx: int, default=None):
+        if values is None:
+            return default
+        if isinstance(values, np.ndarray):
+            if idx >= len(values):
+                return default
+            return values[idx]
+        if isinstance(values, list):
+            if idx >= len(values):
+                return default
+            return values[idx]
+        return default
+
+    def _log_best_trajectory(self, batch: DataProto, epoch: int, metrics: Dict):
+        if not self.config.trainer.get('log_best_trajectory', False):
+            return
+        if 'token_level_scores' not in batch.batch.keys():
+            return
+
+        sequence_scores = batch.batch['token_level_scores'].sum(-1).detach().cpu()
+        best_idx = int(torch.argmax(sequence_scores).item())
+        score = float(sequence_scores[best_idx].item())
+
+        if 'token_level_rewards' in batch.batch.keys():
+            sequence_rewards = batch.batch['token_level_rewards'].sum(-1).detach().cpu()
+            reward = float(sequence_rewards[best_idx].item())
+        else:
+            reward = score
+
+        prompt, trajectory, prompt_length, response_length = self._decode_prompt_response(batch, best_idx)
+        log_dir = self.config.trainer.get('trajectory_log_dir', 'trajectory')
+        os.makedirs(log_dir, exist_ok=True)
+        filename = f"{self.config.trainer.experiment_name}.jsonl"
+        log_path = os.path.join(log_dir, filename)
+
+        record = {
+            'step': int(self.global_steps),
+            'epoch': int(epoch),
+            'sample_idx': best_idx,
+            'batch_size': int(len(batch)),
+            'candidate_count': int(len(batch)),
+            'question_count': int(len(set(batch.non_tensor_batch.get('uid', [])))),
+            'data_source': self._json_safe(self._get_by_index(batch.non_tensor_batch.get('data_source'), best_idx)),
+            'uid': self._json_safe(self._get_by_index(batch.non_tensor_batch.get('uid'), best_idx)),
+            'index': self._json_safe(self._get_by_index(batch.non_tensor_batch.get('index'), best_idx)),
+            'ground_truth': self._json_safe(self._get_by_index(batch.non_tensor_batch.get('reward_model'), best_idx)),
+            'score': score,
+            'prompt_length': prompt_length,
+            'response_length': response_length,
+            'turns': self._json_safe(self._get_by_index(batch.meta_info.get('turns_stats'), best_idx)),
+            'valid_actions': self._json_safe(self._get_by_index(batch.meta_info.get('valid_action_stats'), best_idx)),
+            'valid_searches': self._json_safe(self._get_by_index(batch.meta_info.get('valid_search_stats'), best_idx)),
+            'prompt': prompt,
+            'trajectory': trajectory,
+            'metrics': {
+                'score_mean': float(sequence_scores.mean().item()),
+                'reward_mean': float(reward if 'sequence_rewards' not in locals() else sequence_rewards.mean().item()),
+            },
+        }
+
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(record, ensure_ascii=False) + '\n')
 
     def fit(self):
         """
@@ -798,6 +892,8 @@ class RayPPOTrainer(object):
                             metrics.update(kl_metrics)
                         else:
                             batch.batch['token_level_rewards'] = batch.batch['token_level_scores']
+
+                        self._log_best_trajectory(batch=batch, epoch=epoch, metrics=metrics)
 
                         # compute advantages, executed on the driver process
                         batch = compute_advantage(batch,
