@@ -59,12 +59,7 @@ class LLMGenerationManager:
             skip_special_tokens=True
         )
 
-        responses_str = [resp.split('</search>')[0] + '</search>'
-                 if '</search>' in resp 
-                 else resp.split('</answer>')[0] + '</answer>'
-                 if '</answer>' in resp 
-                 else resp
-                 for resp in responses_str]
+        responses_str = [self._truncate_at_first_action_end(resp) for resp in responses_str]
 
         if self.config.no_think_rl:
             raise ValueError('stop')
@@ -74,6 +69,19 @@ class LLMGenerationManager:
             print("RESPONSES:", responses_str)
         responses = self._batch_tokenize(responses_str)
         return responses, responses_str
+
+    def _truncate_at_first_action_end(self, response: str) -> str:
+        """Keep text only through the first completed search or answer action."""
+        end_tags = ['</search>', '</answer>']
+        end_positions = [
+            (response.find(tag), tag)
+            for tag in end_tags
+            if response.find(tag) != -1
+        ]
+        if not end_positions:
+            return response
+        first_end, first_tag = min(end_positions, key=lambda item: item[0])
+        return response[:first_end + len(first_tag)]
 
     def _process_next_obs(self, next_obs: List[str]) -> torch.Tensor:
         """Process next observations from environment."""
