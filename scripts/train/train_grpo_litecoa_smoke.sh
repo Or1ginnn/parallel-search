@@ -32,6 +32,13 @@ TOPK=3
 MAX_QUERIES_PER_TURN=3
 RETRIEVER_URL="http://127.0.0.1:8000/retrieve"
 
+PLAN_ONCE_BONUS=0.05
+ANSWER_PRESENT_BONUS=0.05
+NO_GENERATED_INFORMATION_BONUS=0.05
+EVIDENCE_HIT_BONUS=0.05
+VALID_SEARCH_BONUS=0.03
+PARALLEL_EVIDENCE_BONUS=0.03
+
 TOTAL_TRAINING_STEPS=21
 TEST_FREQ=5
 SAVE_FREQ=20
@@ -70,6 +77,13 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.fsdp_config.param_offload=False \
     actor_rollout_ref.actor.kl_loss_coef=0.001 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
+    reward_model.litecoa_reward=true \
+    reward_model.litecoa_plan_once_bonus=$PLAN_ONCE_BONUS \
+    reward_model.litecoa_answer_present_bonus=$ANSWER_PRESENT_BONUS \
+    reward_model.litecoa_no_generated_information_bonus=$NO_GENERATED_INFORMATION_BONUS \
+    reward_model.litecoa_evidence_hit_bonus=$EVIDENCE_HIT_BONUS \
+    reward_model.litecoa_valid_search_bonus=$VALID_SEARCH_BONUS \
+    reward_model.litecoa_parallel_evidence_bonus=$PARALLEL_EVIDENCE_BONUS \
     algorithm.no_think_rl=false \
     actor_rollout_ref.rollout.n_agent=5 \
     actor_rollout_ref.rollout.temperature=1 \

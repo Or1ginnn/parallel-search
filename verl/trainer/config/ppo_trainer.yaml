@@ -144,6 +144,13 @@ reward_model:
   structure_format_score: 0
   final_format_score: 0
   retrieval_score: 0
+  litecoa_reward: False
+  litecoa_plan_once_bonus: 0.05
+  litecoa_answer_present_bonus: 0.05
+  litecoa_no_generated_information_bonus: 0.05
+  litecoa_evidence_hit_bonus: 0.05
+  litecoa_valid_search_bonus: 0.03
+  litecoa_parallel_evidence_bonus: 0.03
 
 retriever:
   url: "http://127.0.0.1:8000/retrieve"

@@ -17,7 +17,7 @@ Note that we don't combine the main with ray_trainer as ray_trainer is used by o
 
 from verl import DataProto
 import torch
-from verl.utils.reward_score import qa_em
+from verl.utils.reward_score import litecoa_qa, qa_em
 from verl.trainer.ppo.ray_trainer import RayPPOTrainer
 import re
 import numpy as np
@@ -33,10 +33,39 @@ class RewardManager():
     """The reward manager.
     """
 
-    def __init__(self, tokenizer, num_examine, format_score=0.) -> None:
+    def __init__(self,
+                 tokenizer,
+                 num_examine,
+                 format_score=0.,
+                 litecoa_reward=False,
+                 litecoa_plan_once_bonus=0.05,
+                 litecoa_answer_present_bonus=0.05,
+                 litecoa_no_generated_information_bonus=0.05,
+                 litecoa_evidence_hit_bonus=0.05,
+                 litecoa_valid_search_bonus=0.03,
+                 litecoa_parallel_evidence_bonus=0.03) -> None:
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.format_score = format_score
+        self.litecoa_reward = litecoa_reward
+        self.litecoa_plan_once_bonus = litecoa_plan_once_bonus
+        self.litecoa_answer_present_bonus = litecoa_answer_present_bonus
+        self.litecoa_no_generated_information_bonus = litecoa_no_generated_information_bonus
+        self.litecoa_evidence_hit_bonus = litecoa_evidence_hit_bonus
+        self.litecoa_valid_search_bonus = litecoa_valid_search_bonus
+        self.litecoa_parallel_evidence_bonus = litecoa_parallel_evidence_bonus
+
+    def _decode_response_parts(self, data_item, prompt_length, valid_response_ids, valid_response_length):
+        full_response_str = self.tokenizer.decode(valid_response_ids)
+        if not self.litecoa_reward or 'info_mask' not in data_item.batch.keys():
+            return full_response_str, full_response_str, ""
+
+        response_info_mask = data_item.batch['info_mask'][prompt_length:prompt_length + valid_response_length]
+        model_response_ids = valid_response_ids[response_info_mask.bool()]
+        retrieved_information_ids = valid_response_ids[~response_info_mask.bool()]
+        model_response_str = self.tokenizer.decode(model_response_ids)
+        retrieved_information_str = self.tokenizer.decode(retrieved_information_ids)
+        return full_response_str, model_response_str, retrieved_information_str
 
     def __call__(self, data: DataProto):
         """We will expand this function gradually based on the available datasets"""
@@ -58,16 +87,22 @@ class RewardManager():
 
             prompt_length = prompt_ids.shape[-1]
 
-            valid_prompt_length = data_item.batch['attention_mask'][:prompt_length].sum()
+            valid_prompt_length = int(data_item.batch['attention_mask'][:prompt_length].sum().item())
             valid_prompt_ids = prompt_ids[-valid_prompt_length:]
 
             response_ids = data_item.batch['responses']
-            valid_response_length = data_item.batch['attention_mask'][prompt_length:].sum()
+            valid_response_length = int(data_item.batch['attention_mask'][prompt_length:].sum().item())
             valid_response_ids = response_ids[:valid_response_length]
 
             # decode
             sequences = torch.cat((valid_prompt_ids, valid_response_ids))
             sequences_str = self.tokenizer.decode(sequences)
+            full_response_str, model_response_str, retrieved_information_str = self._decode_response_parts(
+                data_item=data_item,
+                prompt_length=prompt_length,
+                valid_response_ids=valid_response_ids,
+                valid_response_length=valid_response_length,
+            )
 
             ground_truth = data_item.non_tensor_batch['reward_model']['ground_truth']
 
@@ -75,7 +110,20 @@ class RewardManager():
             data_source = data_item.non_tensor_batch['data_source']
             compute_score_fn = _select_rm_score_fn(data_source)
 
-            score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth, format_score=self.format_score)
+            if self.litecoa_reward:
+                score = litecoa_qa.compute_score_em_litecoa(
+                    model_response_str=model_response_str,
+                    retrieved_information_str=retrieved_information_str,
+                    ground_truth=ground_truth,
+                    plan_once_bonus=self.litecoa_plan_once_bonus,
+                    answer_present_bonus=self.litecoa_answer_present_bonus,
+                    no_generated_information_bonus=self.litecoa_no_generated_information_bonus,
+                    evidence_hit_bonus=self.litecoa_evidence_hit_bonus,
+                    valid_search_bonus=self.litecoa_valid_search_bonus,
+                    parallel_evidence_bonus=self.litecoa_parallel_evidence_bonus,
+                )
+            else:
+                score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth, format_score=self.format_score)
 
             reward_tensor[i, valid_response_length - 1] = score
             # all_scores.append(score)
@@ -180,7 +228,17 @@ def main_task(config):
         role_worker_mapping[Role.RewardModel] = ray.remote(RewardModelWorker)
         mapping[Role.RewardModel] = global_pool_id
 
-    reward_fn = RewardManager(tokenizer=tokenizer, num_examine=0)
+    reward_fn = RewardManager(
+        tokenizer=tokenizer,
+        num_examine=0,
+        litecoa_reward=config.reward_model.get('litecoa_reward', False),
+        litecoa_plan_once_bonus=config.reward_model.get('litecoa_plan_once_bonus', 0.05),
+        litecoa_answer_present_bonus=config.reward_model.get('litecoa_answer_present_bonus', 0.05),
+        litecoa_no_generated_information_bonus=config.reward_model.get('litecoa_no_generated_information_bonus', 0.05),
+        litecoa_evidence_hit_bonus=config.reward_model.get('litecoa_evidence_hit_bonus', 0.05),
+        litecoa_valid_search_bonus=config.reward_model.get('litecoa_valid_search_bonus', 0.03),
+        litecoa_parallel_evidence_bonus=config.reward_model.get('litecoa_parallel_evidence_bonus', 0.03),
+    )
 
     # Note that we always use function-based RM for validation
     val_reward_fn = RewardManager(tokenizer=tokenizer, num_examine=1)
