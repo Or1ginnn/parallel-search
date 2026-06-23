@@ -46,6 +46,13 @@ def _has_gold_in_information(retrieved_information_str: str, golden_answers) -> 
     return any(normalize_answer(answer) in normalized_information for answer in golden_answers)
 
 
+def compute_answer_em(model_response_str: str, ground_truth) -> float:
+    answer = extract_solution(solution_str=model_response_str)
+    if answer is not None and em_check(answer, ground_truth["target"]):
+        return 1.0
+    return 0.0
+
+
 def compute_score_em_litecoa(
     model_response_str: str,
     retrieved_information_str: str,
@@ -66,10 +73,8 @@ def compute_score_em_litecoa(
     """
 
     golden_answers = ground_truth["target"]
-    answer = extract_solution(solution_str=model_response_str)
     total = 0.0
-    if answer is not None and em_check(answer, golden_answers):
-        total += score
+    total += score * compute_answer_em(model_response_str, ground_truth)
 
     plan_blocks = _extract_blocks(model_response_str, "plan")
     answer_blocks = _extract_blocks(model_response_str, "answer")

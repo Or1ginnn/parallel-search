@@ -275,6 +275,11 @@ def compute_data_metrics(batch, use_critic=True):
     if 'valid_search_stats' in batch.meta_info:
         metrics['env/number_of_valid_search'] = float(np.array(batch.meta_info['valid_search_stats'], dtype=np.int16).mean())
 
+    if 'answer_em_scores' in batch.meta_info:
+        answer_em_scores = np.array(batch.meta_info['answer_em_scores'], dtype=np.float32)
+        metrics['train/answer_em_mean'] = float(answer_em_scores.mean())
+        metrics['train/answer_em_max'] = float(answer_em_scores.max())
+        metrics['train/answer_em_min'] = float(answer_em_scores.min())
 
     return metrics
 

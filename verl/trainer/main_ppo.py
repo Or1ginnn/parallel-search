@@ -75,6 +75,7 @@ class RewardManager():
             return data.batch['rm_scores']
 
         reward_tensor = torch.zeros_like(data.batch['responses'], dtype=torch.float32)
+        answer_em_scores = []
 
         # all_scores = []
 
@@ -111,6 +112,10 @@ class RewardManager():
             compute_score_fn = _select_rm_score_fn(data_source)
 
             if self.litecoa_reward:
+                answer_em = litecoa_qa.compute_answer_em(
+                    model_response_str=model_response_str,
+                    ground_truth=ground_truth,
+                )
                 score = litecoa_qa.compute_score_em_litecoa(
                     model_response_str=model_response_str,
                     retrieved_information_str=retrieved_information_str,
@@ -124,8 +129,10 @@ class RewardManager():
                 )
             else:
                 score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth, format_score=self.format_score)
+                answer_em = float(score >= 1.0)
 
             reward_tensor[i, valid_response_length - 1] = score
+            answer_em_scores.append(float(answer_em))
             # all_scores.append(score)
 
             if data_source not in already_print_data_sources:
@@ -141,6 +148,8 @@ class RewardManager():
         # print(f"[DEBUG] all_scores max: {np.max(all_scores)}")
         # print(f"[DEBUG] all_scores min: {np.min(all_scores)}")
         # print(f"[DEBUG] all_scores std: {np.std(all_scores)}")
+
+        data.meta_info['answer_em_scores'] = answer_em_scores
 
         return reward_tensor
 
