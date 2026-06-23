@@ -18,7 +18,7 @@ RAY_TMPDIR="ray_tmp/litecoa_grpo"
 RAY_SPILL_DIR="ray_spill/litecoa_grpo"
 
 TRAIN_DATA_NUM=null
-VAL_DATA_NUM=null
+VAL_DATA_NUM=320
 TRAIN_BATCH_SIZE=64
 VAL_BATCH_SIZE=32
 
@@ -76,7 +76,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
     actor_rollout_ref.ref.log_prob_micro_batch_size=32 \
     actor_rollout_ref.ref.fsdp_config.param_offload=False \
-    actor_rollout_ref.actor.kl_loss_coef=0.001 \
+    actor_rollout_ref.actor.kl_loss_coef=0.005 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     reward_model.litecoa_reward=true \
     reward_model.litecoa_plan_once_bonus=$PLAN_ONCE_BONUS \
