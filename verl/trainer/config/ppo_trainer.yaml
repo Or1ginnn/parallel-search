@@ -180,6 +180,7 @@ trainer:
   n_gpus_per_node: 8
   save_freq: -1
   test_freq: -1
+  train_num_examine: 0
   log_best_trajectory: False
   trajectory_log_dir: trajectory
   critic_warmup: 0

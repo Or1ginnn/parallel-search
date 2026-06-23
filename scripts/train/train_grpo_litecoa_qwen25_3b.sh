@@ -42,6 +42,7 @@ PARALLEL_EVIDENCE_BONUS=0.03
 TOTAL_TRAINING_STEPS=1005
 TEST_FREQ=50
 SAVE_FREQ=100
+TRAIN_NUM_EXAMINE=1
 
 mkdir -p "$RAY_TMPDIR" "$RAY_SPILL_DIR" "$TRAJECTORY_LOG_DIR" "verl_checkpoints/$EXPERIMENT_NAME"
 
@@ -96,6 +97,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.nnodes=1 \
     trainer.save_freq=$SAVE_FREQ \
     trainer.test_freq=$TEST_FREQ \
+    trainer.train_num_examine=$TRAIN_NUM_EXAMINE \
     trainer.project_name="$WAND_PROJECT" \
     trainer.experiment_name="$EXPERIMENT_NAME" \
     trainer.log_best_trajectory=true \

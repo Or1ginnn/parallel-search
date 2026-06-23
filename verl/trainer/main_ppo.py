@@ -230,7 +230,7 @@ def main_task(config):
 
     reward_fn = RewardManager(
         tokenizer=tokenizer,
-        num_examine=0,
+        num_examine=config.trainer.get('train_num_examine', 0),
         litecoa_reward=config.reward_model.get('litecoa_reward', False),
         litecoa_plan_once_bonus=config.reward_model.get('litecoa_plan_once_bonus', 0.05),
         litecoa_answer_present_bonus=config.reward_model.get('litecoa_answer_present_bonus', 0.05),
