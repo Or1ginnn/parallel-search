@@ -422,7 +422,7 @@ class LLMGenerationManager:
                             next_obs.append('')
                         dones.append(0)
                         valid_action.append(1)
-                        is_search.append(1)
+                        is_search.append(1 if do_search else 0)
                     else:
                         next_obs.append(f'\nMy previous search action is invalid. \
 I should put one or more valid queries between <search> and </search>. \
