@@ -53,6 +53,14 @@ def compute_answer_em(model_response_str: str, ground_truth) -> float:
     return 0.0
 
 
+def has_answer(model_response_str: str) -> bool:
+    return bool(_extract_blocks(model_response_str, "answer"))
+
+
+def has_generated_information(model_response_str: str) -> bool:
+    return "<information>" in model_response_str or "</information>" in model_response_str
+
+
 def compute_score_em_litecoa(
     model_response_str: str,
     retrieved_information_str: str,
@@ -76,18 +84,17 @@ def compute_score_em_litecoa(
     total = 0.0
     total += score * compute_answer_em(model_response_str, ground_truth)
 
-    plan_blocks = _extract_blocks(model_response_str, "plan")
     answer_blocks = _extract_blocks(model_response_str, "answer")
     search_blocks = _extract_blocks(model_response_str, "search")
     first_search_queries = _split_queries(search_blocks[0]) if search_blocks else []
     has_valid_search = any(_split_queries(search) for search in search_blocks)
     evidence_hit = _has_gold_in_information(retrieved_information_str, golden_answers)
 
-    if len(plan_blocks) == 1:
+    if plan_once_bonus > 0 and len(_extract_blocks(model_response_str, "plan")) == 1:
         total += plan_once_bonus
     if answer_blocks:
         total += answer_present_bonus
-    if "<information>" not in model_response_str and "</information>" not in model_response_str:
+    if not has_generated_information(model_response_str):
         total += no_generated_information_bonus
     if evidence_hit:
         total += evidence_hit_bonus

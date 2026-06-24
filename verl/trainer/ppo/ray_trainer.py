@@ -280,6 +280,9 @@ def compute_data_metrics(batch, use_critic=True):
         metrics['train/answer_em_mean'] = float(answer_em_scores.mean())
         metrics['train/answer_em_max'] = float(answer_em_scores.max())
         metrics['train/answer_em_min'] = float(answer_em_scores.min())
+    if 'hard_zero_scores' in batch.meta_info:
+        hard_zero_scores = np.array(batch.meta_info['hard_zero_scores'], dtype=np.float32)
+        metrics['train/hard_zero_rate'] = float(hard_zero_scores.mean())
 
     return metrics
 

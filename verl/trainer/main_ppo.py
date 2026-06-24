@@ -76,6 +76,7 @@ class RewardManager():
 
         reward_tensor = torch.zeros_like(data.batch['responses'], dtype=torch.float32)
         answer_em_scores = []
+        hard_zero_scores = []
 
         # all_scores = []
 
@@ -127,12 +128,25 @@ class RewardManager():
                     valid_search_bonus=self.litecoa_valid_search_bonus,
                     parallel_evidence_bonus=self.litecoa_parallel_evidence_bonus,
                 )
+                valid_action_stats = data.meta_info.get('valid_action_stats', [])
+                valid_action_count = valid_action_stats[i] if i < len(valid_action_stats) else 1
+                response_clipped = valid_response_length >= response_ids.shape[-1]
+                hard_zero = (
+                    response_clipped
+                    or valid_action_count <= 0
+                    or not litecoa_qa.has_answer(model_response_str)
+                    or litecoa_qa.has_generated_information(model_response_str)
+                )
+                if hard_zero:
+                    score = 0.0
             else:
                 score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth, format_score=self.format_score)
                 answer_em = float(score >= 1.0)
+                hard_zero = False
 
             reward_tensor[i, valid_response_length - 1] = score
             answer_em_scores.append(float(answer_em))
+            hard_zero_scores.append(float(hard_zero))
             # all_scores.append(score)
 
             if data_source not in already_print_data_sources:
@@ -150,6 +164,7 @@ class RewardManager():
         # print(f"[DEBUG] all_scores std: {np.std(all_scores)}")
 
         data.meta_info['answer_em_scores'] = answer_em_scores
+        data.meta_info['hard_zero_scores'] = hard_zero_scores
 
         return reward_tensor
 
