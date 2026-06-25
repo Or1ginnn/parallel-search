@@ -189,6 +189,7 @@ near the top of the shell file.
 
 Main project reports:
 
+- `docs/project_summary.md`
 - `docs/phase1_litecoa_infer.md`
 - `docs/phase2_litecoa_data_report.md`
 - `docs/phase3_litecoa_sft_report.md`
