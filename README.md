@@ -26,6 +26,62 @@ not as a full preservation of the original plan-first LiteCoA format. With a 3B
 model, GRPO converges to the shorter effective action path above rather than
 keeping explicit `<think>` / `<plan>` tags.
 
+## 中文说明
+
+这个仓库是基于 Search-R1 / veRL 改造的并行检索实验项目，目标是让
+LLM agent 不只生成一个 search query，而是在一次 search action 中生成多个
+query，并行检索后再回答。
+
+当前已经完成的核心结果是：
+
+```text
+Qwen2.5-3B base
+-> LiteCoA / Parallel Search rollout
+-> hard reward GRPO
+-> 稳定学会 2-query parallel search
+```
+
+最终有效轨迹更接近下面这种紧凑形式：
+
+```text
+<search> query1 || query2 </search>
+<information> ... </information>
+<answer> ... </answer>
+```
+
+在完整 NQ test set 上，Phase 5 hard reward 的 step 900 greedy 结果为：
+
+```text
+EM: 46.37%
+SubEM: 49.47%
+3609 / 3610 条样本使用 2-query parallel search
+没有 generated information
+没有 max_turns_exceeded
+```
+
+对比原 Search-R1 baseline：
+
+```text
+Search-R1 baseline best NQ EM: 42.69%
+Parallel Search step900 greedy NQ EM: 46.37%
+```
+
+需要注意的是，这个结果说明 **parallel search 目标已经完成**，但 3B 模型没有
+保留完整的 plan-first LiteCoA 格式。也就是说，模型没有稳定输出：
+
+```text
+<think> -> <plan> -> <think> -> <search> -> ...
+```
+
+而是自然收敛到了更短、更容易获得 reward 的：
+
+```text
+parallel search -> information -> answer
+```
+
+因此当前阶段更准确的定位是：**Parallel-Search-R1 / compact LiteCoA agent**。
+如果后续要强制保留 `<plan>`，需要更强模型或单独的格式约束实验。
+
 ## Status
 
 This repository is not an official Search-R1 repository and is not presented as
