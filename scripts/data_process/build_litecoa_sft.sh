@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-export DEEPSEEK_API_KEY="PUT_YOUR_DEEPSEEK_KEY_HERE"
-export DEEPSEEK_MODEL="deepseek-v4-pro"
-export DEEPSEEK_BASE_URL="https://api.deepseek.com"
+: "${DEEPSEEK_API_KEY:?Set DEEPSEEK_API_KEY in your shell before running this script.}"
+export DEEPSEEK_MODEL="${DEEPSEEK_MODEL:-deepseek-v4-pro}"
+export DEEPSEEK_BASE_URL="${DEEPSEEK_BASE_URL:-https://api.deepseek.com}"
 export PYTHONUNBUFFERED=1
 
 TARGET_COUNT="${1:-20}"

@@ -145,3 +145,9 @@ tests/e2e/toy_examples/deepspeed/synchronous/output.txt
 log/
 
 **logs
+
+# local experiment notes and outputs
+docs/
+doc/
+output/
+.obsidian/

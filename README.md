@@ -185,26 +185,13 @@ For the current Phase 5 setup, the intended base model path on the training
 server is Qwen2.5-3B. The script keeps local server paths as editable variables
 near the top of the shell file.
 
-## Documentation
-
-Main project reports:
-
-- `docs/project_summary.md`
-- `docs/phase1_litecoa_infer.md`
-- `docs/phase2_litecoa_data_report.md`
-- `docs/phase3_litecoa_sft_report.md`
-- `docs/phase4_litecoa_rollout.md`
-- `docs/phase5_litecoa_reward.md`
-
-The Phase 5 report contains the final reward design, Search-R1 baseline
-comparison, greedy/temp=1 full NQ eval, and the conclusion that the 3B model
-successfully learns parallel search while dropping explicit plan tags.
-
 ## Notes
 
 - Package and directory names such as `search_r1` are still inherited from the
   upstream code for compatibility.
 - Model and dataset files must be downloaded or generated locally; they are not
   included in this repository.
+- Internal experiment notes and run reports are kept locally and are not
+  published in this repository.
 - Original upstream documentation can be consulted at
   https://github.com/PeterGriffinJin/Search-R1.
