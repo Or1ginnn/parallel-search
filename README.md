@@ -1,14 +1,46 @@
 # Parallel Search
 
 Parallel Search is an experimental reinforcement-learning codebase for
-reasoning-and-search workflows with LLMs. The current code starts from the
-open-source Search-R1 / veRL implementation and will be modified for parallel
-query decomposition and parallel retrieval experiments.
+search-augmented LLM agents. It starts from the open-source Search-R1 / veRL
+implementation and adds LiteCoA-style parallel query search experiments.
+
+The current best result is a compact parallel-search agent trained with GRPO
+from Qwen2.5-3B base. It learns the stable pattern:
+
+```text
+<search> query1 || query2 </search>
+<information> ... </information>
+<answer> ... </answer>
+```
+
+On full NQ test with the Phase 5 hard-reward checkpoint at step 900:
+
+| Model / Run | Eval | NQ EM | NQ SubEM | Search Behavior |
+|---|---|---:|---:|---|
+| Search-R1 baseline Qwen2.5-3B | W&B best step 250 | 42.69% | - | single-query search |
+| Parallel Search Qwen2.5-3B | step 900 greedy | 46.37% | 49.47% | 3609/3610 samples use 2-query search |
+| Parallel Search Qwen2.5-3B | step 900 temp=1 | 43.46% | 46.48% | 3558/3610 samples use 2-query search |
+
+The Phase 5 result should be read as a successful **parallel search** result,
+not as a full preservation of the original plan-first LiteCoA format. With a 3B
+model, GRPO converges to the shorter effective action path above rather than
+keeping explicit `<think>` / `<plan>` tags.
 
 ## Status
 
 This repository is not an official Search-R1 repository and is not presented as
 the original project. It is a derivative development workspace.
+
+Current project status:
+
+```text
+Phase 1: LiteCoA inference prototype completed.
+Phase 2: LiteCoA SFT data construction completed.
+Phase 3: LoRA SFT cold start completed and evaluated.
+Phase 4: LiteCoA rollout / GRPO training loop completed.
+Phase 5: hard reward parallel-search GRPO completed.
+Phase 6: benchmark comparison and result consolidation next.
+```
 
 Large local artifacts are intentionally excluded from git, including model
 weights, checkpoints, datasets, retrieval indexes, trajectory logs, cache
@@ -65,15 +97,51 @@ outside git:
 
 ```bash
 bash retrieval_launch.sh
-bash train_ppo.sh
 bash train_grpo.sh
 ```
 
-The default local training scripts currently target:
+LiteCoA / Parallel Search entry points:
 
 ```bash
-Qwen/Qwen3-4B-Instruct-2507
+# Generate LiteCoA NQ GRPO data.
+python scripts/data_process/nq_search.py \
+  --template_type litecoa \
+  --local_dir data/nq_search_litecoa
+
+# Train the current Phase 5 GRPO setup.
+bash scripts/train/train_grpo_litecoa_qwen25_3b.sh
+
+# Batched vLLM eval for a trained actor checkpoint.
+python scripts/eval/eval_litecoa_sft_vllm.py \
+  --base_model verl_checkpoints/nq-litecoa-grpo-qwen2.5-3b-base-hard/actor/global_step_900 \
+  --adapter "" \
+  --input_parquet data/nq_search_litecoa/test.parquet \
+  --output_dir output/phase5_step900_validate/eval_step900_nq_full \
+  --num_samples -1 \
+  --batch_size 128 \
+  --topk 2 \
+  --max_turns 3 \
+  --max_queries_per_turn 3 \
+  --temperature 0
 ```
+
+For the current Phase 5 setup, the intended base model path on the training
+server is Qwen2.5-3B. The script keeps local server paths as editable variables
+near the top of the shell file.
+
+## Documentation
+
+Main project reports:
+
+- `docs/phase1_litecoa_infer.md`
+- `docs/phase2_litecoa_data_report.md`
+- `docs/phase3_litecoa_sft_report.md`
+- `docs/phase4_litecoa_rollout.md`
+- `docs/phase5_litecoa_reward.md`
+
+The Phase 5 report contains the final reward design, Search-R1 baseline
+comparison, greedy/temp=1 full NQ eval, and the conclusion that the 3B model
+successfully learns parallel search while dropping explicit plan tags.
 
 ## Notes
 
