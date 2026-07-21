@@ -147,7 +147,6 @@ log/
 **logs
 
 # local experiment notes and outputs
-docs/
 doc/
 output/
 .obsidian/

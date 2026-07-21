@@ -1,0 +1,56 @@
+LiteCoA-Search-R1 阶段计划
+
+Phase 0：基线观测
+状态：已完成
+目标：统计 Search-R1 原始模型在稳定区间的数据表现。
+描述：重点观察约 100-250 条样本里的搜索轮次分布、answer 格式、常见失败类型，以及模型对检索证据的依赖程度。
+
+Phase 1：LiteCoA 推理原型
+状态：已完成
+目标：验证 LiteCoA 推理交互链路能否端到端跑通。
+描述：完成 infer_litecoa.py。原型支持第一轮生成一次 <plan>，支持单个 <search> 动作内用 "||" 发起多个并行 query，支持真实 retriever 填充 <information>，也支持后续轮次继续 <think><search> 或最终 <think><answer>。
+
+Phase 2.0：远程 Retriever 就绪
+状态：已完成
+目标：让真实 Search-R1 检索器在远程环境可用。
+描述：把检索资源上传到远程服务器，合并 index 分片，解压 corpus，启动与 Search-R1 训练一致的 retriever，并确认 POST /retrieve 可以正常返回结果。
+
+Phase 2.1：LiteCoA SFT 数据格式定稿
+状态：已完成
+目标：固定 LiteCoA SFT 样本的 schema 和质量规则。
+描述：确定 messages/jsonl 数据格式、tag 顺序、"||" query 分隔方式、quality_flags 字段，以及格式合法性、query 干净程度、evidence hit、answer 长度、answer match 等硬过滤规则。
+
+Phase 2.2：20 条端到端数据闭环
+状态：进行中
+目标：先构造一小批高质量 LiteCoA SFT 样本，验证完整数据构造流程。
+描述：选择 20 条 QA 样本。用 DeepSeek V4 作为 teacher 生成 <think><plan><search>，用真实 Search-R1 retriever 填充 <information>，再让 teacher 基于检索证据生成 <think><answer>。最后运行硬过滤，并人工抽查通过的样本。
+
+Phase 2.3：500 条高质量 SFT 数据集
+状态：待开始
+目标：产出第一版可用于训练的 LiteCoA SFT 数据集。
+描述：把 20 条闭环验证过的流程扩展到约 500 条高质量样本。数据中包含单 query、并行 query、两轮补搜、纠错/反例模式等类型。经过规则过滤和人工抽查后，固化为 litecoa_sft_500.jsonl。
+
+Phase 3：LoRA SFT
+状态：待开始
+目标：让模型先学会 LiteCoA 格式和基本搜索行为。
+描述：使用 Phase 2 构造的数据进行轻量 LoRA SFT。模型需要学会第一轮只生成一次 plan，使用并行 query，不自造 <information>，证据不足时继续补搜，证据充分时输出短答案。
+
+Phase 4：VeRL / Search-R1 训练代码改造
+状态：待开始
+目标：让 GRPO 训练支持 LiteCoA 轨迹格式。
+描述：修改 rollout、parser、prompt、reward 接入、information mask 和 retriever batch 调用，使 Search-R1 / VeRL 能够支持 <plan>、并行 query、多轮 search 和真实检索信息注入。
+
+Phase 5：路径感知 Reward
+状态：待开始
+目标：避免模型只学会表面格式，而没有学到更好的搜索策略。
+描述：在原 answer reward 之外，加入对 plan 质量、query 覆盖、检索路径有效性、重复 query、无效搜索、欠搜、过搜等行为的奖励或惩罚。
+
+Phase 6：训练实验与对比
+状态：待开始
+目标：评估 LiteCoA-Search-R1 相比 baseline 是否真正带来收益。
+描述：对比原 Search-R1、Phase 1 推理原型、SFT 后模型和 GRPO 后模型。观察答案准确率、搜索次数、无效搜索率、evidence hit rate 和 plan 稳定性。
+
+Phase 7：整理与固化
+状态：待开始
+目标：把项目整理成可复现实验流程。
+描述：整理脚本、文档、数据格式、训练命令、评估命令、实验表格、失败案例和最终结论，固化成稳定的 LiteCoA-Search-R1 工作流。
