@@ -70,6 +70,7 @@ def report_chunks(
     chunks: List[Dict[str, Any]] = []
     text_lines = list(row.get("pre_text", [])) + list(row.get("post_text", []))
     for index, text in enumerate(chunk_lines(text_lines, max_text_lines, max_chars)):
+        title = f"FinQA | {report_id} | text {index}"
         chunks.append(
             {
                 "id": f"{split}::{report_id}::text::{index}",
@@ -77,12 +78,16 @@ def report_chunks(
                 "split": split,
                 "source_type": "text",
                 "position": index,
+                "title": title,
                 "text": text,
+                "contents": f"{title}\n{text}",
             }
         )
 
     table = row.get("table", [])
     for row_index in range(1, len(table)):
+        text = table_row_text(table, row_index)
+        title = f"FinQA | {report_id} | table {row_index}"
         chunks.append(
             {
                 "id": f"{split}::{report_id}::table::{row_index}",
@@ -90,7 +95,9 @@ def report_chunks(
                 "split": split,
                 "source_type": "table",
                 "position": row_index,
-                "text": table_row_text(table, row_index),
+                "title": title,
+                "text": text,
+                "contents": f"{title}\n{text}",
             }
         )
     return chunks
