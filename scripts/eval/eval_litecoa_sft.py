@@ -11,7 +11,6 @@ import pandas as pd
 import requests
 import torch
 import transformers
-from peft import PeftModel
 
 
 PROMPT_TEMPLATE = """You are a search-augmented reasoning agent. \
@@ -203,7 +202,11 @@ def load_model(args):
         device_map="auto",
         trust_remote_code=True,
     )
-    model = PeftModel.from_pretrained(base_model, args.adapter)
+    model = base_model
+    if args.adapter:
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(base_model, args.adapter)
     model.eval()
 
     target_sequences = [
@@ -381,6 +384,7 @@ def main():
     parser.add_argument(
         "--adapter",
         default="/mnt/data1/zar/search-1/Search-R1/outputs/sft/litecoa_lora_qwen25_3b_full",
+        help="Optional LoRA adapter. Pass an empty string for a merged model.",
     )
     parser.add_argument("--input_parquet", default="data/nq_search/test.parquet")
     parser.add_argument("--input_jsonl", default=None)
