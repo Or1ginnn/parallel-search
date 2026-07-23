@@ -224,6 +224,41 @@ class DenseRetriever(BaseRetriever):
         )
         self.topk = config.retrieval_topk
         self.batch_size = config.retrieval_batch_size
+        self.report_to_indices = {}
+        if "report_id" in self.corpus.column_names:
+            for idx, report_id in enumerate(self.corpus["report_id"]):
+                self.report_to_indices.setdefault(str(report_id), []).append(idx)
+        self.doc_embeddings = None
+
+    def _get_doc_embeddings(self):
+        if self.doc_embeddings is None:
+            if not isinstance(self.index, faiss.IndexFlat):
+                raise ValueError("Report-scoped retrieval requires a CPU FAISS IndexFlat index.")
+            self.doc_embeddings = self.index.reconstruct_n(0, self.index.ntotal)
+        return self.doc_embeddings
+
+    def batch_search_by_report(
+        self, query_list: List[str], report_ids: List[Optional[str]], num: int, return_score: bool
+    ):
+        if len(query_list) != len(report_ids):
+            raise ValueError("report_ids must have the same length as queries")
+        if not self.report_to_indices:
+            raise ValueError("The active corpus has no report_id field")
+
+        embeddings = self._get_doc_embeddings()
+        query_embeddings = self.encoder.encode(query_list)
+        results, scores = [], []
+        for query_embedding, report_id in zip(query_embeddings, report_ids):
+            candidate_indices = self.report_to_indices.get(str(report_id), [])
+            if not candidate_indices:
+                raise ValueError(f"Unknown report_id: {report_id}")
+            candidate_indices = np.asarray(candidate_indices, dtype=np.int64)
+            candidate_scores = embeddings[candidate_indices] @ query_embedding
+            top_indices = np.argsort(-candidate_scores)[:num]
+            selected_indices = candidate_indices[top_indices]
+            results.append(load_docs(self.corpus, selected_indices))
+            scores.append(candidate_scores[top_indices].astype(float).tolist())
+        return (results, scores) if return_score else results
 
     def _search(self, query: str, num: int = None, return_score: bool = False):
         if num is None:
@@ -319,6 +354,7 @@ class QueryRequest(BaseModel):
     queries: List[str]
     topk: Optional[int] = None
     return_scores: bool = False
+    report_ids: Optional[List[Optional[str]]] = None
 
 
 app = FastAPI()
@@ -337,12 +373,21 @@ def retrieve_endpoint(request: QueryRequest):
     if not request.topk:
         request.topk = config.retrieval_topk  # fallback to default
 
-    # Perform batch retrieval
-    results, scores = retriever.batch_search(
-        query_list=request.queries,
-        num=request.topk,
-        return_score=request.return_scores
-    )
+    if request.report_ids is not None:
+        if not hasattr(retriever, "batch_search_by_report"):
+            raise ValueError("The active retriever does not support report-scoped retrieval")
+        results, scores = retriever.batch_search_by_report(
+            query_list=request.queries,
+            report_ids=request.report_ids,
+            num=request.topk,
+            return_score=request.return_scores,
+        )
+    else:
+        results, scores = retriever.batch_search(
+            query_list=request.queries,
+            num=request.topk,
+            return_score=request.return_scores,
+        )
     
     # Format response
     resp = []

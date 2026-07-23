@@ -23,7 +23,7 @@ import re
 import numpy as np
 
 def _select_rm_score_fn(data_source):
-    if data_source in ['nq', 'triviaqa', 'popqa', 'hotpotqa', '2wikimultihopqa', 'musique', 'bamboogle']:
+    if data_source in ['nq', 'triviaqa', 'popqa', 'hotpotqa', '2wikimultihopqa', 'musique', 'bamboogle', 'finqa']:
         return qa_em.compute_score_em
     else:
         raise NotImplementedError
@@ -276,8 +276,11 @@ def main_task(config):
                             reward_fn=reward_fn,
                             val_reward_fn=val_reward_fn,
                             )
-    trainer.init_workers()
-    trainer.fit()
+    try:
+        trainer.init_workers()
+        trainer.fit()
+    finally:
+        trainer.logger.finish()
 
 
 if __name__ == '__main__':

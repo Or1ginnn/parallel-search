@@ -460,6 +460,7 @@ class RayPPOTrainer(object):
             search_url = self.config.retriever.url,
             topk = self.config.retriever.topk,
             max_queries_per_turn = self.config.retriever.get('max_queries_per_turn', 3),
+            use_report_scope = self.config.retriever.get('use_report_scope', False),
         )
 
         # Agent config preparation
@@ -516,6 +517,8 @@ class RayPPOTrainer(object):
                 # test_batch = test_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n_agent, interleave=True)
                 
                 test_gen_batch = test_batch.pop(batch_keys=['input_ids', 'attention_mask', 'position_ids'])
+                if gen_config.use_report_scope:
+                    test_gen_batch.non_tensor_batch['report_id'] = test_batch.non_tensor_batch['report_id']
                 test_gen_batch.meta_info = {
                     'eos_token_id': self.tokenizer.eos_token_id,
                     'pad_token_id': self.tokenizer.pad_token_id,
@@ -738,6 +741,7 @@ class RayPPOTrainer(object):
             'data_source': self._json_safe(self._get_by_index(batch.non_tensor_batch.get('data_source'), best_idx)),
             'uid': self._json_safe(self._get_by_index(batch.non_tensor_batch.get('uid'), best_idx)),
             'index': self._json_safe(self._get_by_index(batch.non_tensor_batch.get('index'), best_idx)),
+            'report_id': self._json_safe(self._get_by_index(batch.non_tensor_batch.get('report_id'), best_idx)),
             'ground_truth': self._json_safe(self._get_by_index(batch.non_tensor_batch.get('reward_model'), best_idx)),
             'score': score,
             'prompt_length': prompt_length,
@@ -774,9 +778,6 @@ class RayPPOTrainer(object):
             if self.config.trainer.get('val_only', False):
                 return
 
-        # we start from step 1
-        self.global_steps += 1
-
         # Agent config preparation
         gen_config = GenerationConfig(
             max_turns=self.config.max_turns,
@@ -789,6 +790,7 @@ class RayPPOTrainer(object):
             search_url = self.config.retriever.url,
             topk = self.config.retriever.topk,
             max_queries_per_turn = self.config.retriever.get('max_queries_per_turn', 3),
+            use_report_scope = self.config.retriever.get('use_report_scope', False),
         )
 
         generation_manager = LLMGenerationManager(
@@ -800,7 +802,8 @@ class RayPPOTrainer(object):
         # start training loop
         for epoch in range(self.config.trainer.total_epochs):
             for batch_dict in self.train_dataloader:
-                print(f'epoch {epoch}, step {self.global_steps}')
+                step = self.global_steps + 1
+                print(f'epoch {epoch}, step {step}')
                 metrics = {}
                 timing_raw = {}
 
@@ -809,6 +812,8 @@ class RayPPOTrainer(object):
 
                 # pop those keys for generation
                 gen_batch = batch.pop(batch_keys=['input_ids', 'attention_mask', 'position_ids'])
+                if gen_config.use_report_scope:
+                    gen_batch.non_tensor_batch['report_id'] = batch.non_tensor_batch['report_id']
 
                 ####################
                 # original code here
@@ -920,7 +925,7 @@ class RayPPOTrainer(object):
                         metrics.update(critic_output_metrics)
 
                     # implement critic warmup
-                    if self.config.trainer.critic_warmup <= self.global_steps:
+                    if self.config.trainer.critic_warmup <= step:
                         # update actor
                         with _timer('update_actor', timing_raw):
                             if self.config.do_search and self.config.actor_rollout_ref.actor.state_masking:
@@ -931,13 +936,13 @@ class RayPPOTrainer(object):
 
                     # validate
                     if self.val_reward_fn is not None and self.config.trainer.test_freq > 0 and \
-                        self.global_steps % self.config.trainer.test_freq == 0:
+                        step % self.config.trainer.test_freq == 0 and step < self.total_training_steps:
                         with _timer('testing', timing_raw):
                             val_metrics: dict = self._validate()
                         metrics.update(val_metrics)
 
                     if self.config.trainer.save_freq > 0 and \
-                            self.global_steps % self.config.trainer.save_freq == 0:
+                            step % self.config.trainer.save_freq == 0:
                         with _timer('save_checkpoint', timing_raw):
                             self._save_checkpoint()
 
@@ -945,18 +950,18 @@ class RayPPOTrainer(object):
                 metrics.update(compute_data_metrics(batch=batch, use_critic=self.use_critic))
                 metrics.update(compute_timing_metrics(batch=batch, timing_raw=timing_raw))
 
+                is_final_step = step >= self.total_training_steps
+                if is_final_step and self.val_reward_fn is not None:
+                    val_metrics = self._validate()
+                    pprint(f'Final validation metrics: {val_metrics}')
+                    metrics.update(val_metrics)
+
                 # TODO: make a canonical logger that supports various backend
-                logger.log(data=metrics, step=self.global_steps)
+                logger.log(data=metrics, step=step)
 
-                self.global_steps += 1
+                self.global_steps = step
 
-                if self.global_steps >= self.total_training_steps:
-
-                    # perform validation after training
-                    if self.val_reward_fn is not None:
-                        val_metrics = self._validate()
-                        pprint(f'Final validation metrics: {val_metrics}')
-                        logger.log(data=val_metrics, step=self.global_steps)
+                if is_final_step:
                     return
     
     def _create_loss_mask(self, batch, metrics):

@@ -26,6 +26,10 @@ If the evidence is sufficient, provide the answer inside <answer> and </answer>,
 Question: {question}
 """
 
+FINANCIAL_REASONING_HINT = """\
+For financial calculation questions, search for each required quantity with complementary queries (for example, numerator and denominator). Only calculate after all required values are supported by retrieved evidence; never guess a missing value.
+"""
+
 CURR_EOS = {151645, 151643}
 SEARCH_RE = re.compile(r"<search>(.*?)</search>", re.DOTALL)
 ANSWER_RE = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
@@ -128,8 +132,12 @@ def parse_queries(text, max_queries_per_turn):
     return queries, warnings
 
 
-def retrieve(args, queries):
+def retrieve(args, queries, report_id=None):
     payload = {"queries": queries, "topk": args.topk, "return_scores": True}
+    if args.use_report_scope:
+        if not report_id:
+            raise ValueError("report scope requires report_id in every sample")
+        payload["report_ids"] = [report_id] * len(queries)
     response = requests.post(args.retriever_url, json=payload, timeout=args.timeout)
     response.raise_for_status()
     return response.json()["result"]
@@ -160,6 +168,7 @@ def load_samples(args):
                     {
                         "id": item.get("id") or f"sample_{len(rows)}",
                         "question": item["question"],
+                        "report_id": item.get("report_id"),
                         "gold_answer": item.get("gold_answer")
                         or item.get("golden_answers")
                         or [],
@@ -229,11 +238,16 @@ def load_model(args):
     return tokenizer, model, stopping
 
 
-def build_prompt(tokenizer, question, max_queries_per_turn):
+def build_prompt(tokenizer, question, max_queries_per_turn, financial_reasoning_hint):
     prompt = PROMPT_TEMPLATE.format(
         question=normalize_question(question),
         max_queries_per_turn=max_queries_per_turn,
     )
+    if financial_reasoning_hint:
+        prompt = prompt.replace(
+            f"Question: {normalize_question(question)}",
+            f"{FINANCIAL_REASONING_HINT}Question: {normalize_question(question)}",
+        )
     if tokenizer.chat_template:
         prompt = tokenizer.apply_chat_template(
             [{"role": "user", "content": prompt}],
@@ -273,7 +287,12 @@ def run_one(args, tokenizer, model, stopping, sample):
     if isinstance(gold_answers, str):
         gold_answers = [gold_answers]
 
-    prompt = build_prompt(tokenizer, question, args.max_queries_per_turn)
+    prompt = build_prompt(
+        tokenizer,
+        question,
+        args.max_queries_per_turn,
+        args.financial_reasoning_hint,
+    )
     trajectory_parts = []
     queries_by_turn = []
     information_blocks = []
@@ -298,7 +317,7 @@ def run_one(args, tokenizer, model, stopping, sample):
                 agent_warnings.append("no valid query found")
                 break
 
-            results = retrieve(args, queries)
+            results = retrieve(args, queries, sample.get("report_id"))
             information = format_information(queries, results)
             queries_by_turn.append(queries)
             information_blocks.append(information)
@@ -318,6 +337,7 @@ def run_one(args, tokenizer, model, stopping, sample):
     final_answer = extract_answer(generated_text)
     return {
         "id": sample.get("id"),
+        "report_id": sample.get("report_id"),
         "question": question,
         "gold_answer": gold_answers,
         "final_answer": final_answer,
@@ -393,6 +413,8 @@ def main():
     parser.add_argument("--seed", type=int, default=20260618)
     parser.add_argument("--retriever_url", default="http://127.0.0.1:8000/retrieve")
     parser.add_argument("--topk", type=int, default=3)
+    parser.add_argument("--use_report_scope", action="store_true")
+    parser.add_argument("--financial_reasoning_hint", action="store_true")
     parser.add_argument("--max_turns", type=int, default=3)
     parser.add_argument("--max_queries_per_turn", type=int, default=3)
     parser.add_argument("--max_new_tokens", type=int, default=1024)

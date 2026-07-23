@@ -61,6 +61,13 @@ class Tracking(object):
             if backend is None or default_backend in backend:
                 logger_instance.log(data=data, step=step)
 
+    def finish(self):
+        """Flush asynchronous tracking backends before the driver exits."""
+        for logger_instance in self.logger.values():
+            finish = getattr(logger_instance, 'finish', None)
+            if callable(finish):
+                finish()
+
 
 class _MlflowLoggingAdapter:
 

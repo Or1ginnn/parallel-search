@@ -28,6 +28,10 @@ If the evidence is sufficient, provide the answer inside <answer> and </answer>,
 Question: {question}
 """
 
+FINANCIAL_REASONING_HINT = """\
+For financial calculation questions, search for each required quantity with complementary queries (for example, numerator and denominator). Only calculate after all required values are supported by retrieved evidence; never guess a missing value.
+"""
+
 SEARCH_RE = re.compile(r"<search>(.*?)</search>", re.DOTALL)
 ANSWER_RE = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
 PLAN_RE = re.compile(r"<plan>(.*?)</plan>", re.DOTALL)
@@ -111,8 +115,10 @@ def parse_queries(text, max_queries_per_turn):
     return queries, warnings
 
 
-def retrieve(args, queries):
+def retrieve(args, queries, report_ids=None):
     payload = {"queries": queries, "topk": args.topk, "return_scores": True}
+    if report_ids is not None:
+        payload["report_ids"] = report_ids
     response = requests.post(args.retriever_url, json=payload, timeout=args.timeout)
     response.raise_for_status()
     return response.json()["result"]
@@ -143,6 +149,7 @@ def load_samples(args):
                     {
                         "id": item.get("id") or f"sample_{len(rows)}",
                         "question": item["question"],
+                        "report_id": item.get("report_id"),
                         "gold_answer": item.get("gold_answer")
                         or item.get("golden_answers")
                         or [],
@@ -168,6 +175,7 @@ def load_samples(args):
             {
                 "id": item.get("id") or f"sample_{idx}",
                 "question": item["question"],
+                "report_id": item.get("report_id"),
                 "gold_answer": list(gold_answers),
             }
         )
@@ -210,11 +218,16 @@ def load_backend(args):
     return tokenizer, llm, lora_request
 
 
-def build_prompt(tokenizer, question, max_queries_per_turn):
+def build_prompt(tokenizer, question, max_queries_per_turn, financial_reasoning_hint):
     prompt = PROMPT_TEMPLATE.format(
         question=normalize_question(question),
         max_queries_per_turn=max_queries_per_turn,
     )
+    if financial_reasoning_hint:
+        prompt = prompt.replace(
+            f"Question: {normalize_question(question)}",
+            f"{FINANCIAL_REASONING_HINT}Question: {normalize_question(question)}",
+        )
     if tokenizer.chat_template:
         prompt = tokenizer.apply_chat_template(
             [{"role": "user", "content": prompt}],
@@ -264,9 +277,15 @@ def new_state(args, tokenizer, sample):
         gold_answers = [gold_answers]
     return {
         "id": sample.get("id"),
+        "report_id": sample.get("report_id"),
         "question": question,
         "gold_answer": gold_answers,
-        "prompt": build_prompt(tokenizer, question, args.max_queries_per_turn),
+        "prompt": build_prompt(
+            tokenizer,
+            question,
+            args.max_queries_per_turn,
+            args.financial_reasoning_hint,
+        ),
         "trajectory_parts": [],
         "queries_by_turn": [],
         "parser_warnings": [],
@@ -292,6 +311,7 @@ def state_to_record(state):
     gold_answers = state["gold_answer"]
     return {
         "id": state["id"],
+        "report_id": state.get("report_id"),
         "question": state["question"],
         "gold_answer": gold_answers,
         "final_answer": final_answer,
@@ -328,6 +348,7 @@ def run_batch(args, tokenizer, llm, lora_request, samples):
 
             pending = []
             flat_queries = []
+            flat_report_ids = []
             for state, output_text in zip(active, outputs):
                 if append_generation(state, output_text):
                     continue
@@ -341,13 +362,22 @@ def run_batch(args, tokenizer, llm, lora_request, samples):
 
                 start = len(flat_queries)
                 flat_queries.extend(queries)
+                if args.use_report_scope:
+                    report_id = state.get("report_id")
+                    if not report_id:
+                        raise ValueError("report scope requires report_id in every sample")
+                    flat_report_ids.extend([report_id] * len(queries))
                 pending.append((state, output_text, queries, start))
 
             if not pending:
                 continue
 
             try:
-                flat_results = retrieve(args, flat_queries)
+                flat_results = retrieve(
+                    args,
+                    flat_queries,
+                    flat_report_ids if args.use_report_scope else None,
+                )
             except Exception:
                 error = traceback.format_exc()
                 for state, _, _, _ in pending:
@@ -438,6 +468,8 @@ def main():
     parser.add_argument("--seed", type=int, default=20260618)
     parser.add_argument("--retriever_url", default="http://127.0.0.1:8000/retrieve")
     parser.add_argument("--topk", type=int, default=3)
+    parser.add_argument("--use_report_scope", action="store_true")
+    parser.add_argument("--financial_reasoning_hint", action="store_true")
     parser.add_argument("--max_turns", type=int, default=3)
     parser.add_argument("--max_queries_per_turn", type=int, default=3)
     parser.add_argument("--max_new_tokens", type=int, default=1024)

@@ -48,9 +48,42 @@ def _has_gold_in_information(retrieved_information_str: str, golden_answers) -> 
 
 def compute_answer_em(model_response_str: str, ground_truth) -> float:
     answer = extract_solution(solution_str=model_response_str)
-    if answer is not None and em_check(answer, ground_truth["target"]):
+    if answer is None:
+        return 0.0
+    if em_check(answer, ground_truth["target"]):
+        return 1.0
+    if ground_truth.get("answer_type") == "finqa" and _numeric_match(answer, ground_truth["target"]):
         return 1.0
     return 0.0
+
+
+def _extract_single_number(text: str):
+    normalized = text.strip().lower().replace(",", "")
+    normalized = normalized.replace("$", "").replace("%", "")
+    if normalized.startswith("(") and normalized.endswith(")"):
+        normalized = "-" + normalized[1:-1]
+    matches = re.findall(r"[-+]?\d+(?:\.\d+)?", normalized)
+    if len(matches) != 1:
+        return None
+    try:
+        return float(matches[0])
+    except ValueError:
+        return None
+
+
+def _numeric_match(answer: str, golden_answers, relative_tolerance: float = 0.01) -> bool:
+    prediction = _extract_single_number(answer)
+    if prediction is None:
+        return False
+    if isinstance(golden_answers, str):
+        golden_answers = [golden_answers]
+    for golden_answer in golden_answers:
+        target = _extract_single_number(str(golden_answer))
+        if target is None:
+            continue
+        if abs(prediction - target) <= max(1e-2, relative_tolerance * max(1.0, abs(target))):
+            return True
+    return False
 
 
 def has_answer(model_response_str: str) -> bool:

@@ -22,6 +22,7 @@ class GenerationConfig:
     search_url: str = None
     topk: int = 3
     max_queries_per_turn: int = 3
+    use_report_scope: bool = False
 
 class LLMGenerationManager:
     def __init__(
@@ -238,6 +239,9 @@ class LLMGenerationManager:
         valid_search_stats = torch.zeros(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
         active_num_list = [active_mask.sum().item()]
         rollings = gen_batch
+        report_ids = gen_batch.non_tensor_batch.get('report_id')
+        if self.config.use_report_scope and report_ids is None:
+            raise ValueError('report-aware retrieval requires report_id in every dataset row')
 
         # Main generation loop
         for step in range(self.config.max_turns):
@@ -260,7 +264,7 @@ class LLMGenerationManager:
 
             # Execute in environment and process observations
             next_obs, dones, valid_action, is_search = self.execute_predictions(
-                responses_str, self.tokenizer.pad_token, active_mask
+                responses_str, self.tokenizer.pad_token, active_mask, report_ids=report_ids
             )
             
             curr_active_mask = torch.tensor([not done for done in dones], dtype=torch.bool)
@@ -303,7 +307,8 @@ class LLMGenerationManager:
 
             # # Execute in environment and process observations
             _, dones, valid_action, is_search = self.execute_predictions(
-                responses_str, self.tokenizer.pad_token, active_mask, do_search=False
+                responses_str, self.tokenizer.pad_token, active_mask,
+                do_search=False, report_ids=report_ids
             )
 
             curr_active_mask = torch.tensor([not done for done in dones], dtype=torch.bool)
@@ -359,7 +364,10 @@ class LLMGenerationManager:
         
         return final_output
 
-    def execute_predictions(self, predictions: List[str], pad_token: str, active_mask=None, do_search=True) -> List[str]:
+    def execute_predictions(
+        self, predictions: List[str], pad_token: str, active_mask=None,
+        do_search=True, report_ids=None
+    ) -> List[str]:
         """
         Execute predictions across multiple environments.
         NOTE: the function is the actual `step` function in the environment
@@ -378,16 +386,25 @@ class LLMGenerationManager:
 
         search_query_groups = []
         flat_search_queries = []
-        for action, content, active in zip(cur_actions, contents, active_mask):
+        flat_report_ids = []
+        for idx, (action, content, active) in enumerate(zip(cur_actions, contents, active_mask)):
             if action != 'search' or not active:
                 search_query_groups.append([])
                 continue
             queries = self.parse_search_queries(content)
             search_query_groups.append(queries)
             flat_search_queries.extend(queries)
+            if self.config.use_report_scope and queries:
+                report_id = report_ids[idx] if report_ids is not None else None
+                if not report_id:
+                    raise ValueError('report-aware retrieval received an empty report_id')
+                flat_report_ids.extend([str(report_id)] * len(queries))
 
         if do_search:
-            search_results = self.batch_search(flat_search_queries)
+            search_results = self.batch_search(
+                flat_search_queries,
+                flat_report_ids if self.config.use_report_scope else None,
+            )
             assert len(search_results) == len(flat_search_queries)
         else:
             search_results = [''] * len(flat_search_queries)
@@ -492,7 +509,7 @@ If I want to give the final answer, I should put the answer between <answer> and
             
         return actions, contents
 
-    def batch_search(self, queries: List[str] = None) -> str:
+    def batch_search(self, queries: List[str] = None, report_ids: List[str] = None) -> str:
         """
         Batchified search for queries.
         Args:
@@ -502,17 +519,21 @@ If I want to give the final answer, I should put the answer between <answer> and
         """
         if not queries:
             return []
-        results = self._batch_search(queries)['result']
+        results = self._batch_search(queries, report_ids)['result']
         
         return results
 
-    def _batch_search(self, queries):
+    def _batch_search(self, queries, report_ids=None):
         
         payload = {
             "queries": queries,
             "topk": self.config.topk,
             "return_scores": True
         }
+        if report_ids is not None:
+            if len(report_ids) != len(queries):
+                raise ValueError('report_ids must align one-to-one with queries')
+            payload['report_ids'] = report_ids
         
         return requests.post(self.config.search_url, json=payload).json()
 
