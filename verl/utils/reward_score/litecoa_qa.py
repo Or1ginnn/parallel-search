@@ -106,7 +106,7 @@ def compute_score_em_litecoa(
     valid_search_bonus: float = 0.03,
     parallel_evidence_bonus: float = 0.03,
 ) -> float:
-    """LiteCoA reward with answer EM plus small positive shaping bonuses.
+    """Hard-gated LiteCoA reward with small positive shaping bonuses.
 
     model_response_str contains only model-generated tokens.
     retrieved_information_str contains only retriever-inserted observation
@@ -114,21 +114,25 @@ def compute_score_em_litecoa(
     """
 
     golden_answers = ground_truth["target"]
-    total = 0.0
-    total += score * compute_answer_em(model_response_str, ground_truth)
-
     answer_blocks = _extract_blocks(model_response_str, "answer")
     search_blocks = _extract_blocks(model_response_str, "search")
     first_search_queries = _split_queries(search_blocks[0]) if search_blocks else []
     has_valid_search = any(_split_queries(search) for search in search_blocks)
     evidence_hit = _has_gold_in_information(retrieved_information_str, golden_answers)
 
+    # Formatting rewards must never outweigh task success. A trajectory must
+    # answer correctly, use the retriever, and avoid forging observations.
+    answer_em = compute_answer_em(model_response_str, ground_truth)
+    if not answer_em or not has_valid_search or has_generated_information(model_response_str):
+        return 0.0
+
+    total = score * answer_em
+
     if plan_once_bonus > 0 and len(_extract_blocks(model_response_str, "plan")) == 1:
         total += plan_once_bonus
     if answer_blocks:
         total += answer_present_bonus
-    if not has_generated_information(model_response_str):
-        total += no_generated_information_bonus
+    total += no_generated_information_bonus
     if evidence_hit:
         total += evidence_hit_bonus
     if has_valid_search:
