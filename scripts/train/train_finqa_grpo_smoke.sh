@@ -9,8 +9,8 @@ export VLLM_ATTENTION_BACKEND=XFORMERS
 export RAY_memory_usage_threshold=0.99
 
 DATA_DIR="data/finance_finqa/grpo"
-# Continue GRPO from the existing FinQA SFT merge; no SFT retraining is needed.
-BASE_MODEL="${BASE_MODEL:-models/finance_finqa_qwen25_3b_sft_merged}"
+# Continue GRPO from the validated NQ LiteCoA checkpoint; no FinQA SFT run is needed.
+BASE_MODEL="${BASE_MODEL:-models/parallel_search_qwen25_3b_step900}"
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-finqa-litecoa-grpo-qwen2.5-3b-smoke}"
 WAND_PROJECT="Finance_Agent"
 TRAJECTORY_LOG_DIR="${TRAJECTORY_LOG_DIR:-trajectory/finance_finqa_grpo}"
