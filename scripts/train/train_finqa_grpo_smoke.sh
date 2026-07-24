@@ -9,9 +9,8 @@ export VLLM_ATTENTION_BACKEND=XFORMERS
 export RAY_memory_usage_threshold=0.99
 
 DATA_DIR="data/finance_finqa/grpo"
-# Train from the Qwen base model; do not load the optional SFT merge.
-# Set BASE_MODEL to a local checkpoint path to avoid a Hub download.
-BASE_MODEL="${BASE_MODEL:-Qwen/Qwen2.5-3B}"
+# Continue GRPO from the existing FinQA SFT merge; no SFT retraining is needed.
+BASE_MODEL="${BASE_MODEL:-models/finance_finqa_qwen25_3b_sft_merged}"
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-finqa-litecoa-grpo-qwen2.5-3b-smoke}"
 WAND_PROJECT="Finance_Agent"
 TRAJECTORY_LOG_DIR="${TRAJECTORY_LOG_DIR:-trajectory/finance_finqa_grpo}"
