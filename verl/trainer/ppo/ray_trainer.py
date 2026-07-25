@@ -278,6 +278,10 @@ def compute_data_metrics(batch, use_critic=True):
         metrics['env/number_of_valid_calculate'] = float(np.array(batch.meta_info['valid_calculate_stats'], dtype=np.int16).mean())
     if 'invalid_calculate_stats' in batch.meta_info:
         metrics['env/number_of_invalid_calculate'] = float(np.array(batch.meta_info['invalid_calculate_stats'], dtype=np.int16).mean())
+    if 'calculator_bootstrap_stats' in batch.meta_info:
+        metrics['env/calculator_bootstrap_rate'] = float(
+            np.array(batch.meta_info['calculator_bootstrap_stats'], dtype=np.float32).mean()
+        )
 
     if 'answer_em_scores' in batch.meta_info:
         answer_em_scores = np.array(batch.meta_info['answer_em_scores'], dtype=np.float32)
@@ -766,6 +770,7 @@ class RayPPOTrainer(object):
             'valid_searches': self._json_safe(self._get_by_index(batch.meta_info.get('valid_search_stats'), best_idx)),
             'valid_calculations': self._json_safe(self._get_by_index(batch.meta_info.get('valid_calculate_stats'), best_idx)),
             'invalid_calculations': self._json_safe(self._get_by_index(batch.meta_info.get('invalid_calculate_stats'), best_idx)),
+            'calculator_bootstrap': self._json_safe(self._get_by_index(batch.meta_info.get('calculator_bootstrap_stats'), best_idx)),
             'prompt': prompt,
             'trajectory': trajectory,
             'metrics': {
@@ -808,6 +813,8 @@ class RayPPOTrainer(object):
             topk = self.config.retriever.topk,
             max_queries_per_turn = self.config.retriever.get('max_queries_per_turn', 3),
             use_report_scope = self.config.retriever.get('use_report_scope', False),
+            rollout_n_agent = self.config.actor_rollout_ref.rollout.n_agent,
+            calculator_bootstrap_candidates = self.config.retriever.get('calculator_bootstrap_candidates', 0),
         )
 
         generation_manager = LLMGenerationManager(
@@ -831,6 +838,8 @@ class RayPPOTrainer(object):
                 gen_batch = batch.pop(batch_keys=['input_ids', 'attention_mask', 'position_ids'])
                 if gen_config.use_report_scope:
                     gen_batch.non_tensor_batch['report_id'] = batch.non_tensor_batch['report_id']
+                if gen_config.calculator_bootstrap_candidates:
+                    gen_batch.non_tensor_batch['reward_model'] = batch.non_tensor_batch['reward_model']
 
                 ####################
                 # original code here

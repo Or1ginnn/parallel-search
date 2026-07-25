@@ -21,6 +21,9 @@ RETRIEVER_URL="${RETRIEVER_URL:-http://127.0.0.1:8000/retrieve}"
 NUM_GPUS="${NUM_GPUS:-4}"
 ROLLOUT_N_AGENT="${ROLLOUT_N_AGENT:-8}"
 ROLLOUT_TEMPERATURE="${ROLLOUT_TEMPERATURE:-1.2}"
+# For arithmetic rows, seed this many candidates per GRPO group after a successful search.
+# The model still writes the expression; the environment only evaluates it.
+CALCULATOR_BOOTSTRAP_CANDIDATES="${CALCULATOR_BOOTSTRAP_CANDIDATES:-1}"
 
 TRAIN_DATA_NUM="${TRAIN_DATA_NUM:-64}"
 VAL_DATA_NUM="${VAL_DATA_NUM:-64}"
@@ -106,5 +109,6 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     retriever.url="$RETRIEVER_URL" \
     retriever.topk="$RETRIEVER_TOPK" \
     retriever.max_queries_per_turn=3 \
+    +retriever.calculator_bootstrap_candidates="$CALCULATOR_BOOTSTRAP_CANDIDATES" \
     +retriever.use_report_scope=true \
     2>&1 | tee "$EXPERIMENT_NAME.log"
