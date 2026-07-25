@@ -63,7 +63,7 @@ class RewardManager():
 
     def _decode_response_parts(self, data_item, prompt_length, valid_response_ids, valid_response_length):
         full_response_str = self.tokenizer.decode(valid_response_ids)
-        if not self.litecoa_reward or 'info_mask' not in data_item.batch.keys():
+        if 'info_mask' not in data_item.batch.keys():
             return full_response_str, full_response_str, ""
 
         response_info_mask = data_item.batch['info_mask'][prompt_length:prompt_length + valid_response_length]
@@ -165,6 +165,18 @@ class RewardManager():
                 )
                 if hard_zero:
                     score = 0.0
+            elif data_source == 'finqa':
+                answer_em = litecoa_qa.compute_answer_em(
+                    model_response_str=model_response_str,
+                    ground_truth=ground_truth,
+                )
+                score = answer_em
+                hard_zero = False
+                calculation_intermediate_hit = False
+                calculation_final_hit = False
+                requires_calculation = False
+                valid_calculate_count = 0
+                valid_search_count = 0
             else:
                 score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth, format_score=self.format_score)
                 answer_em = float(score >= 1.0)

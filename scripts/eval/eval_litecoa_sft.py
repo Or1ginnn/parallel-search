@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 import torch
 import transformers
+from verl.utils.reward_score.finqa_metrics import finqa_answer_match
 
 
 PROMPT_TEMPLATE = """You are a search-augmented reasoning agent. \
@@ -84,6 +85,16 @@ def em_check(prediction, gold_answers):
 def subem_check(prediction, gold_answers):
     pred = normalize_answer(prediction)
     return any(normalize_answer(gold) and normalize_answer(gold) in pred for gold in gold_answers)
+
+
+def score_answer(prediction, gold_answers, executable_answer=None):
+    raw_em = em_check(prediction, gold_answers)
+    numeric_em = (
+        finqa_answer_match(prediction, gold_answers, executable_answer)
+        if executable_answer
+        else raw_em
+    )
+    return raw_em, numeric_em
 
 
 def extract_answer(text):
@@ -172,6 +183,7 @@ def load_samples(args):
                         "gold_answer": item.get("gold_answer")
                         or item.get("golden_answers")
                         or [],
+                        "executable_answer": item.get("executable_answer", ""),
                     }
                 )
         return rows
@@ -195,6 +207,7 @@ def load_samples(args):
                 "id": item.get("id") or f"sample_{idx}",
                 "question": item["question"],
                 "gold_answer": list(gold_answers),
+                "executable_answer": item.get("executable_answer", ""),
             }
         )
     return rows
@@ -335,13 +348,21 @@ def run_one(args, tokenizer, model, stopping, sample):
 
     generated_text = "\n\n".join(trajectory_parts)
     final_answer = extract_answer(generated_text)
+    raw_answer_em, numeric_answer_em = score_answer(
+        final_answer,
+        gold_answers,
+        sample.get("executable_answer"),
+    )
     return {
         "id": sample.get("id"),
         "report_id": sample.get("report_id"),
         "question": question,
         "gold_answer": gold_answers,
+        "executable_answer": sample.get("executable_answer", ""),
         "final_answer": final_answer,
-        "answer_em": em_check(final_answer, gold_answers) if gold_answers else None,
+        "answer_em": numeric_answer_em if gold_answers else None,
+        "answer_raw_em": raw_answer_em if gold_answers else None,
+        "answer_numeric_em": numeric_answer_em if gold_answers else None,
         "answer_subem": subem_check(final_answer, gold_answers) if gold_answers else None,
         "has_answer": bool(ANSWER_RE.search(generated_text)),
         "has_plan": bool(PLAN_RE.search(generated_text)),
@@ -383,6 +404,8 @@ def summarize(records):
         "search_turn_distribution": dict(sorted(search_turns.items())),
         "query_count_distribution": dict(sorted(query_counts.items())),
         "answer_em": sum(record["answer_em"] for record in with_gold),
+        "answer_raw_em": sum(record["answer_raw_em"] for record in with_gold),
+        "answer_numeric_em": sum(record["answer_numeric_em"] for record in with_gold),
         "answer_subem": sum(record["answer_subem"] for record in with_gold),
         "gold_count": len(with_gold),
     }
