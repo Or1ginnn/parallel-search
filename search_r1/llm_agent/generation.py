@@ -9,6 +9,7 @@ from verl import DataProto
 from verl.utils.tracking import Tracking
 import shutil
 import requests
+from .calculator import CalculationError, evaluate_expression, format_value
 
 @dataclass
 class GenerationConfig:
@@ -72,8 +73,8 @@ class LLMGenerationManager:
         return responses, responses_str
 
     def _truncate_at_first_action_end(self, response: str) -> str:
-        """Keep text only through the first completed search or answer action."""
-        end_tags = ['</search>', '</answer>']
+        """Keep text only through the first completed tool or answer action."""
+        end_tags = ['</search>', '</calculate>', '</answer>']
         end_positions = [
             (response.find(tag), tag)
             for tag in end_tags
@@ -237,6 +238,8 @@ class LLMGenerationManager:
         turns_stats = torch.ones(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
         valid_action_stats = torch.zeros(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
         valid_search_stats = torch.zeros(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
+        valid_calculate_stats = torch.zeros(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
+        invalid_calculate_stats = torch.zeros(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
         active_num_list = [active_mask.sum().item()]
         rollings = gen_batch
         report_ids = gen_batch.non_tensor_batch.get('report_id')
@@ -263,7 +266,7 @@ class LLMGenerationManager:
             responses_ids, responses_str = self.tensor_fn._example_level_pad(responses_ids, responses_str, active_mask)
 
             # Execute in environment and process observations
-            next_obs, dones, valid_action, is_search = self.execute_predictions(
+            next_obs, dones, valid_action, is_search, is_calculate, invalid_calculate = self.execute_predictions(
                 responses_str, self.tokenizer.pad_token, active_mask, report_ids=report_ids
             )
             
@@ -273,6 +276,8 @@ class LLMGenerationManager:
             turns_stats[curr_active_mask] += 1
             valid_action_stats += torch.tensor(valid_action, dtype=torch.int)
             valid_search_stats += torch.tensor(is_search, dtype=torch.int)
+            valid_calculate_stats += torch.tensor(is_calculate, dtype=torch.int)
+            invalid_calculate_stats += torch.tensor(invalid_calculate, dtype=torch.int)
 
             next_obs_ids = self._process_next_obs(next_obs)
             
@@ -306,7 +311,7 @@ class LLMGenerationManager:
             responses_ids, responses_str = self.tensor_fn._example_level_pad(responses_ids, responses_str, active_mask)
 
             # # Execute in environment and process observations
-            _, dones, valid_action, is_search = self.execute_predictions(
+            _, dones, valid_action, is_search, is_calculate, invalid_calculate = self.execute_predictions(
                 responses_str, self.tokenizer.pad_token, active_mask,
                 do_search=False, report_ids=report_ids
             )
@@ -316,6 +321,8 @@ class LLMGenerationManager:
             active_num_list.append(active_mask.sum().item())
             valid_action_stats += torch.tensor(valid_action, dtype=torch.int)
             valid_search_stats += torch.tensor(is_search, dtype=torch.int)
+            valid_calculate_stats += torch.tensor(is_calculate, dtype=torch.int)
+            invalid_calculate_stats += torch.tensor(invalid_calculate, dtype=torch.int)
             
 
             original_right_side = self._update_right_side(
@@ -327,6 +334,8 @@ class LLMGenerationManager:
         meta_info['active_mask'] = active_mask.tolist()
         meta_info['valid_action_stats'] = valid_action_stats.tolist()
         meta_info['valid_search_stats'] = valid_search_stats.tolist()
+        meta_info['valid_calculate_stats'] = valid_calculate_stats.tolist()
+        meta_info['invalid_calculate_stats'] = invalid_calculate_stats.tolist()
         
         print("ACTIVE_TRAJ_NUM:", active_num_list)
         
@@ -383,6 +392,7 @@ class LLMGenerationManager:
         """
         cur_actions, contents = self.postprocess_predictions(predictions)
         next_obs, dones, valid_action, is_search = [], [], [], []
+        is_calculate, invalid_calculate = [], []
 
         search_query_groups = []
         flat_search_queries = []
@@ -418,12 +428,16 @@ class LLMGenerationManager:
                 dones.append(1)
                 valid_action.append(0)
                 is_search.append(0)
+                is_calculate.append(0)
+                invalid_calculate.append(0)
             else:
                 if action == 'answer':
                     next_obs.append('')
                     dones.append(1)
                     valid_action.append(1)
                     is_search.append(0)
+                    is_calculate.append(0)
+                    invalid_calculate.append(0)
                 elif action == 'search':
                     queries = search_query_groups[i]
                     if queries:
@@ -440,6 +454,8 @@ class LLMGenerationManager:
                         dones.append(0)
                         valid_action.append(1)
                         is_search.append(1 if do_search else 0)
+                        is_calculate.append(0)
+                        invalid_calculate.append(0)
                     else:
                         next_obs.append(f'\nMy previous search action is invalid. \
 I should put one or more valid queries between <search> and </search>. \
@@ -447,17 +463,42 @@ Multiple independent queries should be separated by "||". Let me try again.\n')
                         dones.append(0)
                         valid_action.append(0)
                         is_search.append(0)
+                        is_calculate.append(0)
+                        invalid_calculate.append(0)
+                elif action == 'calculate':
+                    try:
+                        result = format_value(evaluate_expression(contents[i]))
+                        next_obs.append(f'\n\n<calculation>{result}</calculation>\n\n')
+                        dones.append(0)
+                        valid_action.append(1)
+                        is_search.append(0)
+                        is_calculate.append(1)
+                        invalid_calculate.append(0)
+                    except CalculationError as error:
+                        next_obs.append(
+                            f'\n<calculation>ERROR: {error}</calculation>\n'
+                            'Use one supported numeric expression such as '
+                            '<calculate>divide(120, 100)</calculate>.\n'
+                        )
+                        dones.append(0)
+                        valid_action.append(0)
+                        is_search.append(0)
+                        is_calculate.append(0)
+                        invalid_calculate.append(1)
                 else:
                     next_obs.append(f'\nMy previous action is invalid. \
 If I want to search, I should put the query between <search> and </search>. \
+If I want to calculate, I should put a numeric expression between <calculate> and </calculate>. \
 If I want to give the final answer, I should put the answer between <answer> and </answer>. Let me try again.\n')
                     dones.append(0)
                     valid_action.append(0)
                     is_search.append(0)
+                    is_calculate.append(0)
+                    invalid_calculate.append(0)
             
         assert search_result_offset == len(search_results)
             
-        return next_obs, dones, valid_action, is_search
+        return next_obs, dones, valid_action, is_search, is_calculate, invalid_calculate
 
     def parse_search_queries(self, content: str) -> List[str]:
         """Parse one <search> action into one or more LiteCoA queries."""
@@ -493,7 +534,7 @@ If I want to give the final answer, I should put the answer between <answer> and
                 
         for prediction in predictions:
             if isinstance(prediction, str): # for llm output
-                pattern = r'<(search|answer)>(.*?)</\1>'
+                pattern = r'<(search|calculate|answer)>(.*?)</\1>'
                 match = re.search(pattern, prediction, re.DOTALL)
                 if match:
                     content = match.group(2).strip()  # Return only the content inside the tags

@@ -43,7 +43,9 @@ class RewardManager():
                  litecoa_no_generated_information_bonus=0.05,
                  litecoa_evidence_hit_bonus=0.05,
                  litecoa_valid_search_bonus=0.03,
-                 litecoa_parallel_evidence_bonus=0.03) -> None:
+                 litecoa_parallel_evidence_bonus=0.03,
+                 litecoa_calculation_intermediate_bonus=0.0,
+                 litecoa_calculation_final_bonus=0.0) -> None:
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.format_score = format_score
@@ -54,6 +56,8 @@ class RewardManager():
         self.litecoa_evidence_hit_bonus = litecoa_evidence_hit_bonus
         self.litecoa_valid_search_bonus = litecoa_valid_search_bonus
         self.litecoa_parallel_evidence_bonus = litecoa_parallel_evidence_bonus
+        self.litecoa_calculation_intermediate_bonus = litecoa_calculation_intermediate_bonus
+        self.litecoa_calculation_final_bonus = litecoa_calculation_final_bonus
 
     def _decode_response_parts(self, data_item, prompt_length, valid_response_ids, valid_response_length):
         full_response_str = self.tokenizer.decode(valid_response_ids)
@@ -77,6 +81,8 @@ class RewardManager():
         reward_tensor = torch.zeros_like(data.batch['responses'], dtype=torch.float32)
         answer_em_scores = []
         hard_zero_scores = []
+        calculation_intermediate_scores = []
+        calculation_final_scores = []
 
         # all_scores = []
 
@@ -127,15 +133,24 @@ class RewardManager():
                     evidence_hit_bonus=self.litecoa_evidence_hit_bonus,
                     valid_search_bonus=self.litecoa_valid_search_bonus,
                     parallel_evidence_bonus=self.litecoa_parallel_evidence_bonus,
+                    calculation_intermediate_bonus=self.litecoa_calculation_intermediate_bonus,
+                    calculation_final_bonus=self.litecoa_calculation_final_bonus,
+                )
+                calculation_intermediate_hit, calculation_final_hit = litecoa_qa.calculation_matches(
+                    retrieved_information_str, ground_truth
                 )
                 valid_action_stats = data.meta_info.get('valid_action_stats', [])
                 valid_action_count = valid_action_stats[i] if i < len(valid_action_stats) else 1
+                invalid_calculate_stats = data.meta_info.get('invalid_calculate_stats', [])
+                invalid_calculate_count = invalid_calculate_stats[i] if i < len(invalid_calculate_stats) else 0
                 response_clipped = valid_response_length >= response_ids.shape[-1]
                 hard_zero = (
                     response_clipped
                     or valid_action_count <= 0
                     or not litecoa_qa.has_answer(model_response_str)
                     or litecoa_qa.has_generated_information(model_response_str)
+                    or litecoa_qa.has_generated_calculation(model_response_str)
+                    or invalid_calculate_count > 0
                 )
                 if hard_zero:
                     score = 0.0
@@ -143,10 +158,14 @@ class RewardManager():
                 score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth, format_score=self.format_score)
                 answer_em = float(score >= 1.0)
                 hard_zero = False
+                calculation_intermediate_hit = False
+                calculation_final_hit = False
 
             reward_tensor[i, valid_response_length - 1] = score
             answer_em_scores.append(float(answer_em))
             hard_zero_scores.append(float(hard_zero))
+            calculation_intermediate_scores.append(float(calculation_intermediate_hit))
+            calculation_final_scores.append(float(calculation_final_hit))
             # all_scores.append(score)
 
             if data_source not in already_print_data_sources:
@@ -165,6 +184,8 @@ class RewardManager():
 
         data.meta_info['answer_em_scores'] = answer_em_scores
         data.meta_info['hard_zero_scores'] = hard_zero_scores
+        data.meta_info['calculation_intermediate_scores'] = calculation_intermediate_scores
+        data.meta_info['calculation_final_scores'] = calculation_final_scores
 
         return reward_tensor
 
@@ -262,6 +283,8 @@ def main_task(config):
         litecoa_evidence_hit_bonus=config.reward_model.get('litecoa_evidence_hit_bonus', 0.05),
         litecoa_valid_search_bonus=config.reward_model.get('litecoa_valid_search_bonus', 0.03),
         litecoa_parallel_evidence_bonus=config.reward_model.get('litecoa_parallel_evidence_bonus', 0.03),
+        litecoa_calculation_intermediate_bonus=config.reward_model.get('litecoa_calculation_intermediate_bonus', 0.0),
+        litecoa_calculation_final_bonus=config.reward_model.get('litecoa_calculation_final_bonus', 0.0),
     )
 
     # Note that we always use function-based RM for validation

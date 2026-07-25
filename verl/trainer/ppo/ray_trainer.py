@@ -274,6 +274,10 @@ def compute_data_metrics(batch, use_critic=True):
         metrics['env/ratio_of_valid_action'] = float((np.array(batch.meta_info['valid_action_stats'], dtype=np.int16) / np.array(batch.meta_info['turns_stats'], dtype=np.int16)).mean())
     if 'valid_search_stats' in batch.meta_info:
         metrics['env/number_of_valid_search'] = float(np.array(batch.meta_info['valid_search_stats'], dtype=np.int16).mean())
+    if 'valid_calculate_stats' in batch.meta_info:
+        metrics['env/number_of_valid_calculate'] = float(np.array(batch.meta_info['valid_calculate_stats'], dtype=np.int16).mean())
+    if 'invalid_calculate_stats' in batch.meta_info:
+        metrics['env/number_of_invalid_calculate'] = float(np.array(batch.meta_info['invalid_calculate_stats'], dtype=np.int16).mean())
 
     if 'answer_em_scores' in batch.meta_info:
         answer_em_scores = np.array(batch.meta_info['answer_em_scores'], dtype=np.float32)
@@ -283,6 +287,10 @@ def compute_data_metrics(batch, use_critic=True):
     if 'hard_zero_scores' in batch.meta_info:
         hard_zero_scores = np.array(batch.meta_info['hard_zero_scores'], dtype=np.float32)
         metrics['train/hard_zero_rate'] = float(hard_zero_scores.mean())
+    if 'calculation_intermediate_scores' in batch.meta_info:
+        metrics['train/calculation_intermediate_match_rate'] = float(np.array(batch.meta_info['calculation_intermediate_scores'], dtype=np.float32).mean())
+    if 'calculation_final_scores' in batch.meta_info:
+        metrics['train/calculation_final_match_rate'] = float(np.array(batch.meta_info['calculation_final_scores'], dtype=np.float32).mean())
 
     return metrics
 
@@ -749,6 +757,8 @@ class RayPPOTrainer(object):
             'turns': self._json_safe(self._get_by_index(batch.meta_info.get('turns_stats'), best_idx)),
             'valid_actions': self._json_safe(self._get_by_index(batch.meta_info.get('valid_action_stats'), best_idx)),
             'valid_searches': self._json_safe(self._get_by_index(batch.meta_info.get('valid_search_stats'), best_idx)),
+            'valid_calculations': self._json_safe(self._get_by_index(batch.meta_info.get('valid_calculate_stats'), best_idx)),
+            'invalid_calculations': self._json_safe(self._get_by_index(batch.meta_info.get('invalid_calculate_stats'), best_idx)),
             'prompt': prompt,
             'trajectory': trajectory,
             'metrics': {

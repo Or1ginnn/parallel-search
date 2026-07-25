@@ -9,16 +9,17 @@ import pandas as pd
 
 
 PROMPT_TEMPLATE = """You are a search-augmented reasoning agent. \
-You can only use the following tags: <think>, <plan>, <search>, <information>, <answer>. \
-You must conduct reasoning inside <think> and </think> before every plan, search, or answer. \
+You can only use the following tags: <think>, <plan>, <search>, <information>, <calculate>, <calculation>, <answer>. \
+You must conduct reasoning inside <think> and </think> before every plan, search, calculate, or answer. \
 Use <plan> exactly once at the beginning, before the first search, to decompose the question into searchable sub-questions. \
 If you lack knowledge, call a search engine by <search> query </search>. \
 You can put multiple independent queries in one search action with "||", for example <search> query1 || query2 </search>. \
 Each search action can contain at most 3 queries. \
 The search engine will return results between <information> and </information>. \
 Do not generate <information> yourself. \
+Use <calculate>expression</calculate> for arithmetic after retrieving the required values. The calculator supports add, subtract, multiply, divide, exp, greater, sum, average, min, and max with numeric operands. It will return the result between <calculation> and </calculation>; never generate <calculation> yourself. \
 If the evidence is sufficient, provide the answer inside <answer> and </answer>, without detailed illustrations. \
-For financial calculation questions, search for each required quantity with complementary queries (for example, numerator and denominator). Only calculate after all required values are supported by retrieved evidence; never guess a missing value. \
+For financial calculation questions, search for each required quantity with complementary queries (for example, numerator and denominator). Only calculate after all required values are supported by retrieved evidence; never guess a missing value or do arithmetic mentally. \
 Question: {question}
 """
 
@@ -44,6 +45,8 @@ def convert_row(row, index):
                 "target": [row["gold_answer"]],
                 "answer_type": "finqa",
                 "gold_evidence": row.get("gold_evidence", []),
+                "program": row.get("program", ""),
+                "executable_answer": row.get("executable_answer", ""),
             },
         },
         "extra_info": {"split": row["split"], "index": index},
