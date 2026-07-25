@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Phase 5 smoke: 64 FinQA train questions, 4 candidates each, 10 GRPO updates.
+# Calculator bootstrap smoke: 64 FinQA train questions, 8 candidates each, 10 GRPO updates.
 # Run the all-corpus E5 retriever on GPU 3 before launching this script.
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
@@ -19,7 +19,7 @@ RAY_TMPDIR="${RAY_TMPDIR:-ray_tmp/finqa_grpo_smoke}"
 RAY_SPILL_DIR="${RAY_SPILL_DIR:-ray_spill/finqa_grpo_smoke}"
 RETRIEVER_URL="${RETRIEVER_URL:-http://127.0.0.1:8000/retrieve}"
 NUM_GPUS="${NUM_GPUS:-4}"
-ROLLOUT_N_AGENT="${ROLLOUT_N_AGENT:-4}"
+ROLLOUT_N_AGENT="${ROLLOUT_N_AGENT:-8}"
 ROLLOUT_TEMPERATURE="${ROLLOUT_TEMPERATURE:-1.2}"
 
 TRAIN_DATA_NUM="${TRAIN_DATA_NUM:-64}"
@@ -76,6 +76,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     reward_model.litecoa_evidence_hit_bonus=0.0 \
     reward_model.litecoa_valid_search_bonus=0.0 \
     reward_model.litecoa_parallel_evidence_bonus=0.05 \
+    reward_model.litecoa_valid_calculation_bonus=0.03 \
     reward_model.litecoa_calculation_intermediate_bonus=0.05 \
     reward_model.litecoa_calculation_final_bonus=0.10 \
     algorithm.no_think_rl=false \

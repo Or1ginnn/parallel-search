@@ -44,6 +44,7 @@ class RewardManager():
                  litecoa_evidence_hit_bonus=0.05,
                  litecoa_valid_search_bonus=0.03,
                  litecoa_parallel_evidence_bonus=0.03,
+                 litecoa_valid_calculation_bonus=0.0,
                  litecoa_calculation_intermediate_bonus=0.0,
                  litecoa_calculation_final_bonus=0.0) -> None:
         self.tokenizer = tokenizer
@@ -56,6 +57,7 @@ class RewardManager():
         self.litecoa_evidence_hit_bonus = litecoa_evidence_hit_bonus
         self.litecoa_valid_search_bonus = litecoa_valid_search_bonus
         self.litecoa_parallel_evidence_bonus = litecoa_parallel_evidence_bonus
+        self.litecoa_valid_calculation_bonus = litecoa_valid_calculation_bonus
         self.litecoa_calculation_intermediate_bonus = litecoa_calculation_intermediate_bonus
         self.litecoa_calculation_final_bonus = litecoa_calculation_final_bonus
 
@@ -148,6 +150,10 @@ class RewardManager():
                 valid_calculate_stats = data.meta_info.get('valid_calculate_stats', [])
                 valid_calculate_count = valid_calculate_stats[i] if i < len(valid_calculate_stats) else 0
                 requires_calculation = bool(ground_truth.get('requires_calculation', False))
+                valid_search_stats = data.meta_info.get('valid_search_stats', [])
+                valid_search_count = valid_search_stats[i] if i < len(valid_search_stats) else 0
+                if requires_calculation and valid_search_count > 0 and valid_calculate_count > 0:
+                    score += self.litecoa_valid_calculation_bonus
                 response_clipped = valid_response_length >= response_ids.shape[-1]
                 hard_zero = (
                     response_clipped
@@ -156,7 +162,6 @@ class RewardManager():
                     or litecoa_qa.has_generated_information(model_response_str)
                     or litecoa_qa.has_generated_calculation(model_response_str)
                     or invalid_calculate_count > 0
-                    or (requires_calculation and valid_calculate_count <= 0)
                 )
                 if hard_zero:
                     score = 0.0
@@ -168,6 +173,7 @@ class RewardManager():
                 calculation_final_hit = False
                 requires_calculation = False
                 valid_calculate_count = 0
+                valid_search_count = 0
 
             reward_tensor[i, valid_response_length - 1] = score
             answer_em_scores.append(float(answer_em))
@@ -295,6 +301,7 @@ def main_task(config):
         litecoa_evidence_hit_bonus=config.reward_model.get('litecoa_evidence_hit_bonus', 0.05),
         litecoa_valid_search_bonus=config.reward_model.get('litecoa_valid_search_bonus', 0.03),
         litecoa_parallel_evidence_bonus=config.reward_model.get('litecoa_parallel_evidence_bonus', 0.03),
+        litecoa_valid_calculation_bonus=config.reward_model.get('litecoa_valid_calculation_bonus', 0.0),
         litecoa_calculation_intermediate_bonus=config.reward_model.get('litecoa_calculation_intermediate_bonus', 0.0),
         litecoa_calculation_final_bonus=config.reward_model.get('litecoa_calculation_final_bonus', 0.0),
     )
