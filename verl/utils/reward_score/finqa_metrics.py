@@ -71,6 +71,24 @@ def numeric_equivalent(prediction, target, relative_tolerance=0.01):
     )
 
 
+def executable_equivalent(prediction, executable_answer, decimal_places=5):
+    """Match a calculator result at FinQA's five-decimal execution precision."""
+
+    parsed_prediction = _parse_numeric_answer(prediction)
+    parsed_executable = _parse_numeric_answer(executable_answer)
+    if parsed_prediction is None or parsed_executable is None:
+        return False
+
+    prediction_value, prediction_unit = parsed_prediction
+    executable_value, executable_unit = parsed_executable
+    if prediction_unit and executable_unit:
+        prediction_value *= _UNIT_SCALE[prediction_unit]
+        executable_value *= _UNIT_SCALE[executable_unit]
+    return round(prediction_value, decimal_places) == round(
+        executable_value, decimal_places
+    )
+
+
 def finqa_answer_match(prediction, gold_answers, executable_answer=None, relative_tolerance=0.01):
     """Accept exact gold strings or numeric equivalents of gold/program outputs."""
 
@@ -79,11 +97,13 @@ def finqa_answer_match(prediction, gold_answers, executable_answer=None, relativ
         return False
     gold_answers = _as_list(gold_answers)
     executable_answers = _as_list(executable_answer)
-    if any(normalize_answer(prediction) == normalize_answer(answer) for answer in gold_answers):
+    targets = gold_answers + executable_answers
+    if any(normalize_answer(prediction) == normalize_answer(answer) for answer in targets):
         return True
 
-    targets = gold_answers + executable_answers
+    if any(executable_equivalent(prediction, answer) for answer in executable_answers):
+        return True
     return any(
         numeric_equivalent(prediction, target, relative_tolerance)
-        for target in targets
+        for target in gold_answers
     )
