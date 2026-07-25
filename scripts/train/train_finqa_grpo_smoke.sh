@@ -8,7 +8,7 @@ export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
 export VLLM_ATTENTION_BACKEND=XFORMERS
 export RAY_memory_usage_threshold=0.99
 
-DATA_DIR="data/finance_finqa/grpo"
+DATA_DIR="${DATA_DIR:-data/finance_finqa/grpo}"
 # Continue GRPO from the validated NQ LiteCoA checkpoint; no FinQA SFT run is needed.
 BASE_MODEL="${BASE_MODEL:-models/parallel_search_qwen25_3b_step900}"
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-finqa-litecoa-grpo-qwen2.5-3b-smoke}"
@@ -17,7 +17,7 @@ TRAJECTORY_LOG_DIR="${TRAJECTORY_LOG_DIR:-trajectory/finance_finqa_grpo}"
 
 RAY_TMPDIR="${RAY_TMPDIR:-ray_tmp/finqa_grpo_smoke}"
 RAY_SPILL_DIR="${RAY_SPILL_DIR:-ray_spill/finqa_grpo_smoke}"
-RETRIEVER_URL="http://127.0.0.1:8000/retrieve"
+RETRIEVER_URL="${RETRIEVER_URL:-http://127.0.0.1:8000/retrieve}"
 NUM_GPUS="${NUM_GPUS:-4}"
 ROLLOUT_N_AGENT="${ROLLOUT_N_AGENT:-4}"
 ROLLOUT_TEMPERATURE="${ROLLOUT_TEMPERATURE:-1.2}"
