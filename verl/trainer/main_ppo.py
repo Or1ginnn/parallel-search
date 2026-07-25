@@ -83,6 +83,8 @@ class RewardManager():
         hard_zero_scores = []
         calculation_intermediate_scores = []
         calculation_final_scores = []
+        calculation_required_scores = []
+        calculation_required_action_scores = []
 
         # all_scores = []
 
@@ -143,6 +145,9 @@ class RewardManager():
                 valid_action_count = valid_action_stats[i] if i < len(valid_action_stats) else 1
                 invalid_calculate_stats = data.meta_info.get('invalid_calculate_stats', [])
                 invalid_calculate_count = invalid_calculate_stats[i] if i < len(invalid_calculate_stats) else 0
+                valid_calculate_stats = data.meta_info.get('valid_calculate_stats', [])
+                valid_calculate_count = valid_calculate_stats[i] if i < len(valid_calculate_stats) else 0
+                requires_calculation = bool(ground_truth.get('requires_calculation', False))
                 response_clipped = valid_response_length >= response_ids.shape[-1]
                 hard_zero = (
                     response_clipped
@@ -151,6 +156,7 @@ class RewardManager():
                     or litecoa_qa.has_generated_information(model_response_str)
                     or litecoa_qa.has_generated_calculation(model_response_str)
                     or invalid_calculate_count > 0
+                    or (requires_calculation and valid_calculate_count <= 0)
                 )
                 if hard_zero:
                     score = 0.0
@@ -160,12 +166,16 @@ class RewardManager():
                 hard_zero = False
                 calculation_intermediate_hit = False
                 calculation_final_hit = False
+                requires_calculation = False
+                valid_calculate_count = 0
 
             reward_tensor[i, valid_response_length - 1] = score
             answer_em_scores.append(float(answer_em))
             hard_zero_scores.append(float(hard_zero))
             calculation_intermediate_scores.append(float(calculation_intermediate_hit))
             calculation_final_scores.append(float(calculation_final_hit))
+            calculation_required_scores.append(float(requires_calculation))
+            calculation_required_action_scores.append(float(requires_calculation and valid_calculate_count > 0))
             # all_scores.append(score)
 
             if data_source not in already_print_data_sources:
@@ -186,6 +196,8 @@ class RewardManager():
         data.meta_info['hard_zero_scores'] = hard_zero_scores
         data.meta_info['calculation_intermediate_scores'] = calculation_intermediate_scores
         data.meta_info['calculation_final_scores'] = calculation_final_scores
+        data.meta_info['calculation_required_scores'] = calculation_required_scores
+        data.meta_info['calculation_required_action_scores'] = calculation_required_action_scores
 
         return reward_tensor
 

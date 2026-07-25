@@ -291,6 +291,13 @@ def compute_data_metrics(batch, use_critic=True):
         metrics['train/calculation_intermediate_match_rate'] = float(np.array(batch.meta_info['calculation_intermediate_scores'], dtype=np.float32).mean())
     if 'calculation_final_scores' in batch.meta_info:
         metrics['train/calculation_final_match_rate'] = float(np.array(batch.meta_info['calculation_final_scores'], dtype=np.float32).mean())
+    if 'calculation_required_scores' in batch.meta_info:
+        required = np.array(batch.meta_info['calculation_required_scores'], dtype=np.float32)
+        required_actions = np.array(batch.meta_info.get('calculation_required_action_scores', []), dtype=np.float32)
+        metrics['train/calculation_required_rate'] = float(required.mean())
+        metrics['train/calculation_action_rate_on_required'] = float(
+            required_actions.sum() / max(required.sum(), 1.0)
+        )
 
     return metrics
 

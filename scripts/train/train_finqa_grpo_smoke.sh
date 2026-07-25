@@ -4,7 +4,7 @@ set -euo pipefail
 # Phase 5 smoke: 64 FinQA train questions, 4 candidates each, 10 GRPO updates.
 # Run the all-corpus E5 retriever on GPU 3 before launching this script.
 
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
 export VLLM_ATTENTION_BACKEND=XFORMERS
 export RAY_memory_usage_threshold=0.99
 
@@ -18,6 +18,9 @@ TRAJECTORY_LOG_DIR="${TRAJECTORY_LOG_DIR:-trajectory/finance_finqa_grpo}"
 RAY_TMPDIR="${RAY_TMPDIR:-ray_tmp/finqa_grpo_smoke}"
 RAY_SPILL_DIR="${RAY_SPILL_DIR:-ray_spill/finqa_grpo_smoke}"
 RETRIEVER_URL="http://127.0.0.1:8000/retrieve"
+NUM_GPUS="${NUM_GPUS:-4}"
+ROLLOUT_N_AGENT="${ROLLOUT_N_AGENT:-4}"
+ROLLOUT_TEMPERATURE="${ROLLOUT_TEMPERATURE:-1.2}"
 
 TRAIN_DATA_NUM="${TRAIN_DATA_NUM:-64}"
 VAL_DATA_NUM="${VAL_DATA_NUM:-64}"
@@ -76,13 +79,13 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     reward_model.litecoa_calculation_intermediate_bonus=0.05 \
     reward_model.litecoa_calculation_final_bonus=0.10 \
     algorithm.no_think_rl=false \
-    actor_rollout_ref.rollout.n_agent=4 \
-    actor_rollout_ref.rollout.temperature=1 \
+    actor_rollout_ref.rollout.n_agent="$ROLLOUT_N_AGENT" \
+    actor_rollout_ref.rollout.temperature="$ROLLOUT_TEMPERATURE" \
     actor_rollout_ref.actor.state_masking=true \
     trainer.logger=['wandb'] \
     +trainer.val_only=false \
     +trainer.val_before_train=false \
-    trainer.n_gpus_per_node=4 \
+    trainer.n_gpus_per_node="$NUM_GPUS" \
     trainer.nnodes=1 \
     trainer.save_freq="$SAVE_FREQ" \
     trainer.test_freq="$TEST_FREQ" \
