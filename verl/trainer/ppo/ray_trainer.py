@@ -274,14 +274,8 @@ def compute_data_metrics(batch, use_critic=True):
         metrics['env/ratio_of_valid_action'] = float((np.array(batch.meta_info['valid_action_stats'], dtype=np.int16) / np.array(batch.meta_info['turns_stats'], dtype=np.int16)).mean())
     if 'valid_search_stats' in batch.meta_info:
         metrics['env/number_of_valid_search'] = float(np.array(batch.meta_info['valid_search_stats'], dtype=np.int16).mean())
-    if 'valid_calculate_stats' in batch.meta_info:
-        metrics['env/number_of_valid_calculate'] = float(np.array(batch.meta_info['valid_calculate_stats'], dtype=np.int16).mean())
-    if 'invalid_calculate_stats' in batch.meta_info:
-        metrics['env/number_of_invalid_calculate'] = float(np.array(batch.meta_info['invalid_calculate_stats'], dtype=np.int16).mean())
-    if 'calculator_bootstrap_stats' in batch.meta_info:
-        metrics['env/calculator_bootstrap_rate'] = float(
-            np.array(batch.meta_info['calculator_bootstrap_stats'], dtype=np.float32).mean()
-        )
+    if 'invalid_action_stats' in batch.meta_info:
+        metrics['env/number_of_invalid_action'] = float(np.array(batch.meta_info['invalid_action_stats'], dtype=np.int16).mean())
 
     if 'answer_em_scores' in batch.meta_info:
         answer_em_scores = np.array(batch.meta_info['answer_em_scores'], dtype=np.float32)
@@ -291,17 +285,6 @@ def compute_data_metrics(batch, use_critic=True):
     if 'hard_zero_scores' in batch.meta_info:
         hard_zero_scores = np.array(batch.meta_info['hard_zero_scores'], dtype=np.float32)
         metrics['train/hard_zero_rate'] = float(hard_zero_scores.mean())
-    if 'calculation_intermediate_scores' in batch.meta_info:
-        metrics['train/calculation_intermediate_match_rate'] = float(np.array(batch.meta_info['calculation_intermediate_scores'], dtype=np.float32).mean())
-    if 'calculation_final_scores' in batch.meta_info:
-        metrics['train/calculation_final_match_rate'] = float(np.array(batch.meta_info['calculation_final_scores'], dtype=np.float32).mean())
-    if 'calculation_required_scores' in batch.meta_info:
-        required = np.array(batch.meta_info['calculation_required_scores'], dtype=np.float32)
-        required_actions = np.array(batch.meta_info.get('calculation_required_action_scores', []), dtype=np.float32)
-        metrics['train/calculation_required_rate'] = float(required.mean())
-        metrics['train/calculation_action_rate_on_required'] = float(
-            required_actions.sum() / max(required.sum(), 1.0)
-        )
 
     return metrics
 
@@ -768,9 +751,7 @@ class RayPPOTrainer(object):
             'turns': self._json_safe(self._get_by_index(batch.meta_info.get('turns_stats'), best_idx)),
             'valid_actions': self._json_safe(self._get_by_index(batch.meta_info.get('valid_action_stats'), best_idx)),
             'valid_searches': self._json_safe(self._get_by_index(batch.meta_info.get('valid_search_stats'), best_idx)),
-            'valid_calculations': self._json_safe(self._get_by_index(batch.meta_info.get('valid_calculate_stats'), best_idx)),
-            'invalid_calculations': self._json_safe(self._get_by_index(batch.meta_info.get('invalid_calculate_stats'), best_idx)),
-            'calculator_bootstrap': self._json_safe(self._get_by_index(batch.meta_info.get('calculator_bootstrap_stats'), best_idx)),
+            'invalid_actions': self._json_safe(self._get_by_index(batch.meta_info.get('invalid_action_stats'), best_idx)),
             'prompt': prompt,
             'trajectory': trajectory,
             'metrics': {
@@ -814,7 +795,6 @@ class RayPPOTrainer(object):
             max_queries_per_turn = self.config.retriever.get('max_queries_per_turn', 3),
             use_report_scope = self.config.retriever.get('use_report_scope', False),
             rollout_n_agent = self.config.actor_rollout_ref.rollout.n_agent,
-            calculator_bootstrap_candidates = self.config.retriever.get('calculator_bootstrap_candidates', 0),
         )
 
         generation_manager = LLMGenerationManager(
@@ -838,8 +818,6 @@ class RayPPOTrainer(object):
                 gen_batch = batch.pop(batch_keys=['input_ids', 'attention_mask', 'position_ids'])
                 if gen_config.use_report_scope:
                     gen_batch.non_tensor_batch['report_id'] = batch.non_tensor_batch['report_id']
-                if gen_config.calculator_bootstrap_candidates:
-                    gen_batch.non_tensor_batch['reward_model'] = batch.non_tensor_batch['reward_model']
 
                 ####################
                 # original code here

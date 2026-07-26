@@ -3,29 +3,21 @@
 
 import argparse
 import json
-import re
 from pathlib import Path
 
 import pandas as pd
 
 
-ARITHMETIC_PROGRAM_PATTERN = re.compile(
-    r"\b(?:add|subtract|multiply|divide|exp|greater)\s*\("
-)
-
 PROMPT_TEMPLATE = """You are a search-augmented reasoning agent. \
-You can only use the following tags: <think>, <plan>, <search>, <information>, <calculate>, <calculation>, <answer>. \
-You must conduct reasoning inside <think> and </think> before every plan, search, calculate, or answer. \
-Use <plan> exactly once at the beginning, before the first search, to decompose the question into searchable sub-questions. \
+You can only use the following tags: <think>, <search>, <information>, <answer>. \
+You must conduct reasoning inside <think> and </think> before every search or answer. \
 If you lack knowledge, call a search engine by <search> query </search>. \
 You can put multiple independent queries in one search action with "||", for example <search> query1 || query2 </search>. \
 Each search action can contain at most 3 queries. \
 The search engine will return results between <information> and </information>. \
 Do not generate <information> yourself. \
-Use <calculate>expression</calculate> for arithmetic after retrieving the required values. The calculator supports add, subtract, multiply, divide, exp, greater, sum, average, min, and max with numeric operands. It will return the result between <calculation> and </calculation>; never generate <calculation> yourself. \
-For a question that requires arithmetic, an answer is valid only after you call <calculate>; do not perform arithmetic mentally. Calculator example: <calculate>subtract(30%, 24%)</calculate> then the tool returns <calculation>6</calculation>, so the final response is <answer>6%</answer>. \
 If the evidence is sufficient, provide the answer inside <answer> and </answer>, without detailed illustrations. \
-For financial calculation questions, search for each required quantity with complementary queries (for example, numerator and denominator). Only calculate after all required values are supported by retrieved evidence; never guess a missing value or do arithmetic mentally. \
+For financial calculation questions, search for each required quantity with complementary queries (for example, numerator and denominator). Use the retrieved evidence to reason through any arithmetic inside <think>; never guess a missing value. \
 Question: {question}
 """
 
@@ -33,10 +25,6 @@ Question: {question}
 def load_jsonl(path: Path):
     with path.open(encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
-
-
-def requires_calculation(program: str) -> bool:
-    return bool(ARITHMETIC_PROGRAM_PATTERN.search(program or ""))
 
 
 def convert_row(row, index):
@@ -57,7 +45,6 @@ def convert_row(row, index):
                 "gold_evidence": row.get("gold_evidence", []),
                 "program": row.get("program", ""),
                 "executable_answer": row.get("executable_answer", ""),
-                "requires_calculation": requires_calculation(row.get("program", "")),
             },
         },
         "extra_info": {"split": row["split"], "index": index},

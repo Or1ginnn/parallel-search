@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Calculator bootstrap smoke: 64 FinQA train questions, 8 candidates each, 10 GRPO updates.
+# FinQA LiteCoA smoke: 64 train questions, 8 candidates each, 10 GRPO updates.
 # Run the all-corpus E5 retriever on GPU 3 before launching this script.
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
@@ -9,7 +9,7 @@ export VLLM_ATTENTION_BACKEND=XFORMERS
 export RAY_memory_usage_threshold=0.99
 
 DATA_DIR="${DATA_DIR:-data/finance_finqa/grpo}"
-# Continue GRPO from the validated NQ LiteCoA checkpoint; no FinQA SFT run is needed.
+# Set BASE_MODEL to the merged FinQA SFT checkpoint before running GRPO.
 BASE_MODEL="${BASE_MODEL:-models/parallel_search_qwen25_3b_step900}"
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-finqa-litecoa-grpo-qwen2.5-3b-smoke}"
 WAND_PROJECT="Finance_Agent"
@@ -21,17 +21,13 @@ RETRIEVER_URL="${RETRIEVER_URL:-http://127.0.0.1:8000/retrieve}"
 NUM_GPUS="${NUM_GPUS:-4}"
 ROLLOUT_N_AGENT="${ROLLOUT_N_AGENT:-8}"
 ROLLOUT_TEMPERATURE="${ROLLOUT_TEMPERATURE:-1.2}"
-# For arithmetic rows, seed this many candidates per GRPO group after a successful search.
-# The model still writes the expression; the environment only evaluates it.
-CALCULATOR_BOOTSTRAP_CANDIDATES="${CALCULATOR_BOOTSTRAP_CANDIDATES:-1}"
-
 TRAIN_DATA_NUM="${TRAIN_DATA_NUM:-64}"
 VAL_DATA_NUM="${VAL_DATA_NUM:-64}"
 TRAIN_BATCH_SIZE="${TRAIN_BATCH_SIZE:-8}"
 VAL_BATCH_SIZE="${VAL_BATCH_SIZE:-16}"
 MAX_RESPONSE_LENGTH="${MAX_RESPONSE_LENGTH:-512}"
-MAX_OBS_LENGTH="${MAX_OBS_LENGTH:-1000}"
-RETRIEVER_TOPK="${RETRIEVER_TOPK:-2}"
+MAX_OBS_LENGTH="${MAX_OBS_LENGTH:-1500}"
+RETRIEVER_TOPK="${RETRIEVER_TOPK:-3}"
 PPO_MINI_BATCH_SIZE="${PPO_MINI_BATCH_SIZE:-8}"
 PPO_MICRO_BATCH_SIZE="${PPO_MICRO_BATCH_SIZE:-4}"
 LOGPROB_MICRO_BATCH_SIZE="${LOGPROB_MICRO_BATCH_SIZE:-8}"
@@ -75,15 +71,11 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.kl_loss_coef=0.001 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     reward_model.litecoa_reward=true \
-    reward_model.litecoa_plan_once_bonus=0.0 \
     reward_model.litecoa_answer_present_bonus=0.05 \
     reward_model.litecoa_no_generated_information_bonus=0.05 \
     reward_model.litecoa_evidence_hit_bonus=0.05 \
     reward_model.litecoa_valid_search_bonus=0.05 \
     reward_model.litecoa_parallel_evidence_bonus=0.05 \
-    reward_model.litecoa_valid_calculation_bonus=0.05 \
-    reward_model.litecoa_calculation_intermediate_bonus=0.05 \
-    reward_model.litecoa_calculation_final_bonus=0.05 \
     algorithm.no_think_rl=false \
     actor_rollout_ref.rollout.n_agent="$ROLLOUT_N_AGENT" \
     actor_rollout_ref.rollout.temperature="$ROLLOUT_TEMPERATURE" \
@@ -109,6 +101,5 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     retriever.url="$RETRIEVER_URL" \
     retriever.topk="$RETRIEVER_TOPK" \
     retriever.max_queries_per_turn=3 \
-    +retriever.calculator_bootstrap_candidates="$CALCULATOR_BOOTSTRAP_CANDIDATES" \
     +retriever.use_report_scope=true \
     2>&1 | tee "$EXPERIMENT_NAME.log"

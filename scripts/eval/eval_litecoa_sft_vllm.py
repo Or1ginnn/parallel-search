@@ -17,9 +17,8 @@ from verl.utils.reward_score.finqa_metrics import finqa_answer_match
 
 
 PROMPT_TEMPLATE = """You are a search-augmented reasoning agent. \
-You can only use the following tags: <think>, <plan>, <search>, <information>, <answer>. \
-You must conduct reasoning inside <think> and </think> before every plan, search, or answer. \
-Use <plan> to decompose the question into searchable sub-questions. \
+You can only use the following tags: <think>, <search>, <information>, <answer>. \
+You must conduct reasoning inside <think> and </think> before every search or answer. \
 If you lack knowledge, call a search engine by <search> query </search>. \
 You can put multiple independent queries in one search action with "||", for example <search> query1 || query2 </search>. \
 Each search action can contain at most {max_queries_per_turn} queries. \
@@ -30,12 +29,11 @@ Question: {question}
 """
 
 FINANCIAL_REASONING_HINT = """\
-For financial calculation questions, search for each required quantity with complementary queries (for example, numerator and denominator). Only calculate after all required values are supported by retrieved evidence; never guess a missing value.
+For financial calculation questions, search for each required quantity with complementary queries (for example, numerator and denominator). Reason from the retrieved values inside <think>; never guess a missing value.
 """
 
 SEARCH_RE = re.compile(r"<search>(.*?)</search>", re.DOTALL)
 ANSWER_RE = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
-PLAN_RE = re.compile(r"<plan>(.*?)</plan>", re.DOTALL)
 LOG_F = None
 
 
@@ -340,8 +338,6 @@ def state_to_record(state):
         "answer_numeric_em": numeric_answer_em if gold_answers else None,
         "answer_subem": subem_check(final_answer, gold_answers) if gold_answers else None,
         "has_answer": bool(ANSWER_RE.search(generated_text)),
-        "has_plan": bool(PLAN_RE.search(generated_text)),
-        "plan_count": len(PLAN_RE.findall(generated_text)),
         "search_turns": len(state["queries_by_turn"]),
         "query_count": sum(len(qs) for qs in state["queries_by_turn"]),
         "queries_by_turn": state["queries_by_turn"],
@@ -444,12 +440,7 @@ def summarize(records):
     return {
         "total": n,
         "errors": sum(bool(record["error"]) for record in records),
-        "format_valid": sum(
-            record["has_plan"] and record["plan_count"] == 1 and record["has_answer"]
-            for record in records
-        ),
-        "has_plan": sum(record["has_plan"] for record in records),
-        "plan_once": sum(record["plan_count"] == 1 for record in records),
+        "format_valid": sum(record["has_answer"] for record in records),
         "answer_count": sum(record["has_answer"] for record in records),
         "generated_information_count": sum(record["generated_information"] for record in records),
         "parser_warning_count": sum(bool(record["parser_warnings"]) for record in records),

@@ -2,7 +2,7 @@
 """
 Build a small LiteCoA SFT dataset with a real Search-R1 retriever.
 
-The teacher model only generates <think>, <plan>, <search>, and <answer>.
+The teacher model only generates <think>, <search>, and <answer>.
 The <information> blocks are always filled from the retriever response.
 """
 
@@ -22,13 +22,12 @@ from requests import HTTPError
 SYSTEM_PROMPT = """You are a search-augmented reasoning agent.
 You can only use the following tags:
 <think>...</think>
-<plan>...</plan>
 <search>...</search>
 <information>...</information>
 <answer>...</answer>
 
 Rules:
-1. Use <think> before <plan>, <search>, or <answer>.
+1. Use <think> before <search> or <answer>.
 2. Use <search> to issue one or multiple search queries.
 3. Multiple independent queries must be separated by "||".
 4. Each <search> can contain at most 3 queries.
@@ -73,7 +72,6 @@ Do not include XML tags inside a query."""
 
 TAG_RE = re.compile(r"<[^>]+>")
 SEARCH_RE = re.compile(r"<search>(.*?)</search>", re.DOTALL)
-PLAN_RE = re.compile(r"<plan>(.*?)</plan>", re.DOTALL)
 ANSWER_RE = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
 INFORMATION_RE = re.compile(r"</?information>", re.IGNORECASE)
 

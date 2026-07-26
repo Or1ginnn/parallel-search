@@ -14,7 +14,6 @@
 
 import re
 
-from search_r1.llm_agent.calculator import evaluate_program, value_matches
 from verl.utils.reward_score.finqa_metrics import finqa_answer_match
 from verl.utils.reward_score.qa_em import em_check, extract_solution, normalize_answer
 
@@ -74,50 +73,16 @@ def has_generated_information(model_response_str: str) -> bool:
     return "<information>" in model_response_str or "</information>" in model_response_str
 
 
-def has_generated_calculation(model_response_str: str) -> bool:
-    return "<calculation>" in model_response_str or "</calculation>" in model_response_str
-
-
-def calculation_matches(tool_observation_str: str, ground_truth) -> tuple[bool, bool]:
-    """Check calculator observations against executable FinQA program values."""
-
-    calculator_values = [
-        value for value in _extract_blocks(tool_observation_str, "calculation")
-        if value and not value.startswith("ERROR:")
-    ]
-    if not calculator_values:
-        return False, False
-
-    program_values = evaluate_program(ground_truth.get("program", ""))
-    intermediate_values = program_values[:-1] if len(program_values) > 1 else []
-    intermediate_hit = any(
-        value_matches(calculated, target)
-        for calculated in calculator_values
-        for target in intermediate_values
-    )
-
-    final_target = ground_truth.get("executable_answer")
-    if not final_target and program_values:
-        final_target = program_values[-1]
-    final_hit = bool(final_target) and any(
-        value_matches(calculated, final_target) for calculated in calculator_values
-    )
-    return intermediate_hit, final_hit
-
-
 def compute_score_em_litecoa(
     model_response_str: str,
     retrieved_information_str: str,
     ground_truth,
     score: float = 1.0,
-    plan_once_bonus: float = 0.05,
     answer_present_bonus: float = 0.05,
     no_generated_information_bonus: float = 0.05,
     evidence_hit_bonus: float = 0.05,
     valid_search_bonus: float = 0.03,
     parallel_evidence_bonus: float = 0.03,
-    calculation_intermediate_bonus: float = 0.0,
-    calculation_final_bonus: float = 0.0,
 ) -> float:
     """LiteCoA reward with answer EM plus small positive shaping bonuses.
 
@@ -135,12 +100,6 @@ def compute_score_em_litecoa(
     first_search_queries = _split_queries(search_blocks[0]) if search_blocks else []
     has_valid_search = any(_split_queries(search) for search in search_blocks)
     evidence_hit = _has_gold_in_information(retrieved_information_str, golden_answers)
-    calculation_intermediate_hit, calculation_final_hit = calculation_matches(
-        retrieved_information_str, ground_truth
-    )
-
-    if plan_once_bonus > 0 and len(_extract_blocks(model_response_str, "plan")) == 1:
-        total += plan_once_bonus
     if answer_blocks:
         total += answer_present_bonus
     if not has_generated_information(model_response_str):
@@ -151,9 +110,4 @@ def compute_score_em_litecoa(
         total += valid_search_bonus
     if len(first_search_queries) >= 2 and evidence_hit:
         total += parallel_evidence_bonus
-    if calculation_intermediate_hit:
-        total += calculation_intermediate_bonus
-    if calculation_final_hit:
-        total += calculation_final_bonus
-
     return total

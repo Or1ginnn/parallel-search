@@ -1,5 +1,4 @@
 import torch
-import re
 from collections import defaultdict
 import os
 from typing import List, Dict, Any, Tuple
@@ -9,7 +8,6 @@ from verl import DataProto
 from verl.utils.tracking import Tracking
 import shutil
 import requests
-from .calculator import CalculationError, evaluate_expression, format_value
 
 @dataclass
 class GenerationConfig:
@@ -25,7 +23,6 @@ class GenerationConfig:
     max_queries_per_turn: int = 3
     use_report_scope: bool = False
     rollout_n_agent: int = 1
-    calculator_bootstrap_candidates: int = 0
 
 class LLMGenerationManager:
     def __init__(
@@ -76,7 +73,7 @@ class LLMGenerationManager:
 
     def _truncate_at_first_action_end(self, response: str) -> str:
         """Keep text only through the first completed tool or answer action."""
-        end_tags = ['</search>', '</calculate>', '</answer>']
+        end_tags = ['</search>', '</answer>']
         end_positions = [
             (response.find(tag), tag)
             for tag in end_tags
@@ -179,62 +176,6 @@ class LLMGenerationManager:
         
         return {'responses': responses[:, :max_len], 'responses_with_info_mask': responses_with_info_mask[:, :max_len]}
 
-    def _requires_calculation_mask(self, gen_batch: DataProto, batch_size: int) -> torch.Tensor:
-        """Read the per-example FinQA arithmetic flag without coupling rollout to a dataset class."""
-        reward_models = gen_batch.non_tensor_batch.get('reward_model')
-        if reward_models is None or len(reward_models) != batch_size:
-            return torch.zeros(batch_size, dtype=torch.bool)
-
-        requires_calculation = []
-        for reward_model in reward_models:
-            ground_truth = reward_model.get('ground_truth', {}) if isinstance(reward_model, dict) else {}
-            requires_calculation.append(bool(ground_truth.get('requires_calculation', False)))
-        return torch.tensor(requires_calculation, dtype=torch.bool)
-
-    def _calculator_bootstrap_candidate_mask(self, batch_size: int) -> torch.Tensor:
-        """Select the first K interleaved candidates in each GRPO question group."""
-        group_size = max(int(self.config.rollout_n_agent), 1)
-        candidates = min(max(int(self.config.calculator_bootstrap_candidates), 0), group_size)
-        if self.is_validation or candidates == 0:
-            return torch.zeros(batch_size, dtype=torch.bool)
-        return torch.tensor(
-            [index % group_size < candidates for index in range(batch_size)],
-            dtype=torch.bool,
-        )
-
-    def _append_calculator_prefix(self, rollings: DataProto, right_side: Dict,
-                                  prefix_mask: torch.Tensor) -> Tuple[DataProto, Dict]:
-        """Append a structural calculator prefix for the bootstrap trajectory only.
-
-        The model still generates the expression and closing tag. The prefix is retained in the
-        response so actor log-prob recomputation sees the same trajectory the environment executes.
-        """
-        if not prefix_mask.any():
-            return rollings, right_side
-
-        input_ids = rollings.batch['input_ids']
-        prefix_ids = self.tokenizer('<calculate>', add_special_tokens=False,
-                                    return_tensors='pt')['input_ids'].to(
-                                        device=input_ids.device, dtype=input_ids.dtype)
-        prefix = prefix_ids.repeat(input_ids.shape[0], 1)
-        prefix[~prefix_mask.to(device=input_ids.device)] = self.tokenizer.pad_token_id
-
-        new_input_ids = self.tensor_fn.concatenate_with_padding([input_ids, prefix])
-        new_attention_mask = self.tensor_fn.create_attention_mask(new_input_ids)
-        new_position_ids = self.tensor_fn.create_position_ids(new_attention_mask)
-        max_len = min(self.config.max_prompt_length, int(new_attention_mask.sum(dim=1).max().item()))
-        rollings.batch['input_ids'] = new_input_ids[:, -max_len:]
-        rollings.batch['attention_mask'] = new_attention_mask[:, -max_len:]
-        rollings.batch['position_ids'] = new_position_ids[:, -max_len:]
-        right_side = self._update_right_side(right_side, prefix)
-        return rollings, right_side
-
-    @staticmethod
-    def _restore_calculator_prefix(response: str) -> str:
-        """Put the prompted prefix back into the recorded trajectory exactly once."""
-        response = re.sub(r'^\s*<calculate>', '', response, count=1)
-        return f'<calculate>{response}'
-
     def _generate_with_gpu_padding(self, active_batch: DataProto) -> DataProto:
         """
             Wrapper for generation that handles multi-GPU padding requirements.
@@ -296,13 +237,8 @@ class LLMGenerationManager:
         turns_stats = torch.ones(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
         valid_action_stats = torch.zeros(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
         valid_search_stats = torch.zeros(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
-        valid_calculate_stats = torch.zeros(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
-        invalid_calculate_stats = torch.zeros(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
+        invalid_action_stats = torch.zeros(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
         batch_size = gen_batch.batch['input_ids'].shape[0]
-        requires_calculation = self._requires_calculation_mask(gen_batch, batch_size)
-        bootstrap_candidates = self._calculator_bootstrap_candidate_mask(batch_size)
-        pending_calculator_prefix = torch.zeros(batch_size, dtype=torch.bool)
-        calculator_bootstrap_stats = torch.zeros(batch_size, dtype=torch.int)
         active_num_list = [active_mask.sum().item()]
         rollings = gen_batch
         report_ids = gen_batch.non_tensor_batch.get('report_id')
@@ -313,13 +249,6 @@ class LLMGenerationManager:
         for step in range(self.config.max_turns):
             if not active_mask.sum():
                 break
-            forced_prefix_mask = pending_calculator_prefix & active_mask
-            if forced_prefix_mask.any():
-                rollings, original_right_side = self._append_calculator_prefix(
-                    rollings, original_right_side, forced_prefix_mask
-                )
-                calculator_bootstrap_stats += forced_prefix_mask.to(dtype=torch.int)
-            pending_calculator_prefix.zero_()
             rollings.batch = self.tensor_fn.cut_to_effective_len(
                 rollings.batch,
                 keys=['input_ids', 'attention_mask', 'position_ids']
@@ -333,17 +262,10 @@ class LLMGenerationManager:
 
             meta_info = gen_output.meta_info            
             responses_ids, responses_str = self._postprocess_responses(gen_output.batch['responses'])
-            forced_prefix_active = forced_prefix_mask[active_mask].tolist()
-            if any(forced_prefix_active):
-                responses_str = [
-                    self._restore_calculator_prefix(response) if forced else response
-                    for response, forced in zip(responses_str, forced_prefix_active)
-                ]
-                responses_ids = self._batch_tokenize(responses_str)
             responses_ids, responses_str = self.tensor_fn._example_level_pad(responses_ids, responses_str, active_mask)
 
             # Execute in environment and process observations
-            next_obs, dones, valid_action, is_search, is_calculate, invalid_calculate = self.execute_predictions(
+            next_obs, dones, valid_action, is_search, invalid_action = self.execute_predictions(
                 responses_str, self.tokenizer.pad_token, active_mask, report_ids=report_ids
             )
             
@@ -353,19 +275,7 @@ class LLMGenerationManager:
             turns_stats[curr_active_mask] += 1
             valid_action_stats += torch.tensor(valid_action, dtype=torch.int)
             valid_search_stats += torch.tensor(is_search, dtype=torch.int)
-            valid_calculate_stats += torch.tensor(is_calculate, dtype=torch.int)
-            invalid_calculate_stats += torch.tensor(invalid_calculate, dtype=torch.int)
-
-            # After a real search, seed one candidate per arithmetic question into the calculator
-            # action state. All remaining candidates are left as ordinary on-policy rollouts.
-            searched = torch.tensor(is_search, dtype=torch.bool)
-            pending_calculator_prefix = (
-                searched
-                & curr_active_mask
-                & requires_calculation
-                & bootstrap_candidates
-                & (valid_calculate_stats == 0)
-            )
+            invalid_action_stats += torch.tensor(invalid_action, dtype=torch.int)
 
             next_obs_ids = self._process_next_obs(next_obs)
             
@@ -383,12 +293,6 @@ class LLMGenerationManager:
             
         # final LLM rollout
         if active_mask.sum():
-            forced_prefix_mask = pending_calculator_prefix & active_mask
-            if forced_prefix_mask.any():
-                rollings, original_right_side = self._append_calculator_prefix(
-                    rollings, original_right_side, forced_prefix_mask
-                )
-                calculator_bootstrap_stats += forced_prefix_mask.to(dtype=torch.int)
             rollings.batch = self.tensor_fn.cut_to_effective_len(
                 rollings.batch,
                 keys=['input_ids', 'attention_mask', 'position_ids']
@@ -402,17 +306,10 @@ class LLMGenerationManager:
 
             meta_info = gen_output.meta_info            
             responses_ids, responses_str = self._postprocess_responses(gen_output.batch['responses'])
-            forced_prefix_active = forced_prefix_mask[active_mask].tolist()
-            if any(forced_prefix_active):
-                responses_str = [
-                    self._restore_calculator_prefix(response) if forced else response
-                    for response, forced in zip(responses_str, forced_prefix_active)
-                ]
-                responses_ids = self._batch_tokenize(responses_str)
             responses_ids, responses_str = self.tensor_fn._example_level_pad(responses_ids, responses_str, active_mask)
 
             # # Execute in environment and process observations
-            _, dones, valid_action, is_search, is_calculate, invalid_calculate = self.execute_predictions(
+            _, dones, valid_action, is_search, invalid_action = self.execute_predictions(
                 responses_str, self.tokenizer.pad_token, active_mask,
                 do_search=False, report_ids=report_ids
             )
@@ -422,8 +319,7 @@ class LLMGenerationManager:
             active_num_list.append(active_mask.sum().item())
             valid_action_stats += torch.tensor(valid_action, dtype=torch.int)
             valid_search_stats += torch.tensor(is_search, dtype=torch.int)
-            valid_calculate_stats += torch.tensor(is_calculate, dtype=torch.int)
-            invalid_calculate_stats += torch.tensor(invalid_calculate, dtype=torch.int)
+            invalid_action_stats += torch.tensor(invalid_action, dtype=torch.int)
             
 
             original_right_side = self._update_right_side(
@@ -435,9 +331,7 @@ class LLMGenerationManager:
         meta_info['active_mask'] = active_mask.tolist()
         meta_info['valid_action_stats'] = valid_action_stats.tolist()
         meta_info['valid_search_stats'] = valid_search_stats.tolist()
-        meta_info['valid_calculate_stats'] = valid_calculate_stats.tolist()
-        meta_info['invalid_calculate_stats'] = invalid_calculate_stats.tolist()
-        meta_info['calculator_bootstrap_stats'] = calculator_bootstrap_stats.tolist()
+        meta_info['invalid_action_stats'] = invalid_action_stats.tolist()
         
         print("ACTIVE_TRAJ_NUM:", active_num_list)
         
@@ -493,8 +387,7 @@ class LLMGenerationManager:
             List of observation strings
         """
         cur_actions, contents = self.postprocess_predictions(predictions)
-        next_obs, dones, valid_action, is_search = [], [], [], []
-        is_calculate, invalid_calculate = [], []
+        next_obs, dones, valid_action, is_search, invalid_action = [], [], [], [], []
 
         search_query_groups = []
         flat_search_queries = []
@@ -530,16 +423,14 @@ class LLMGenerationManager:
                 dones.append(1)
                 valid_action.append(0)
                 is_search.append(0)
-                is_calculate.append(0)
-                invalid_calculate.append(0)
+                invalid_action.append(0)
             else:
                 if action == 'answer':
                     next_obs.append('')
                     dones.append(1)
                     valid_action.append(1)
                     is_search.append(0)
-                    is_calculate.append(0)
-                    invalid_calculate.append(0)
+                    invalid_action.append(0)
                 elif action == 'search':
                     queries = search_query_groups[i]
                     if queries:
@@ -556,8 +447,7 @@ class LLMGenerationManager:
                         dones.append(0)
                         valid_action.append(1)
                         is_search.append(1 if do_search else 0)
-                        is_calculate.append(0)
-                        invalid_calculate.append(0)
+                        invalid_action.append(0)
                     else:
                         next_obs.append(f'\nMy previous search action is invalid. \
 I should put one or more valid queries between <search> and </search>. \
@@ -565,42 +455,19 @@ Multiple independent queries should be separated by "||". Let me try again.\n')
                         dones.append(0)
                         valid_action.append(0)
                         is_search.append(0)
-                        is_calculate.append(0)
-                        invalid_calculate.append(0)
-                elif action == 'calculate':
-                    try:
-                        result = format_value(evaluate_expression(contents[i]))
-                        next_obs.append(f'\n\n<calculation>{result}</calculation>\n\n')
-                        dones.append(0)
-                        valid_action.append(1)
-                        is_search.append(0)
-                        is_calculate.append(1)
-                        invalid_calculate.append(0)
-                    except CalculationError as error:
-                        next_obs.append(
-                            f'\n<calculation>ERROR: {error}</calculation>\n'
-                            'Use one supported numeric expression such as '
-                            '<calculate>divide(120, 100)</calculate>.\n'
-                        )
-                        dones.append(0)
-                        valid_action.append(0)
-                        is_search.append(0)
-                        is_calculate.append(0)
-                        invalid_calculate.append(1)
+                        invalid_action.append(1)
                 else:
                     next_obs.append(f'\nMy previous action is invalid. \
 If I want to search, I should put the query between <search> and </search>. \
-If I want to calculate, I should put a numeric expression between <calculate> and </calculate>. \
 If I want to give the final answer, I should put the answer between <answer> and </answer>. Let me try again.\n')
                     dones.append(0)
                     valid_action.append(0)
                     is_search.append(0)
-                    is_calculate.append(0)
-                    invalid_calculate.append(0)
+                    invalid_action.append(1)
             
         assert search_result_offset == len(search_results)
             
-        return next_obs, dones, valid_action, is_search, is_calculate, invalid_calculate
+        return next_obs, dones, valid_action, is_search, invalid_action
 
     def parse_search_queries(self, content: str) -> List[str]:
         """Parse one <search> action into one or more LiteCoA queries."""
@@ -636,7 +503,7 @@ If I want to give the final answer, I should put the answer between <answer> and
                 
         for prediction in predictions:
             if isinstance(prediction, str): # for llm output
-                pattern = r'<(search|calculate|answer)>(.*?)</\1>'
+                pattern = r'<(search|answer)>(.*?)</\1>'
                 match = re.search(pattern, prediction, re.DOTALL)
                 if match:
                     content = match.group(2).strip()  # Return only the content inside the tags
