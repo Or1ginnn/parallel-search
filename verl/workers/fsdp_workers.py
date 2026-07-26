@@ -17,8 +17,10 @@ The main entry point to run the PPO algorithm
 
 import logging
 import os
+import random
 import warnings
 
+import numpy as np
 import torch
 import torch.distributed
 import verl.utils.hdfs_io as hdfs_io
@@ -300,8 +302,10 @@ class ActorRolloutRefWorker(Worker):
             else:
                 optim_config = None
                 fsdp_config = OmegaConf.create()
+            resume_path = self.config.model.get('resume_path', None)
+            actor_model_path = resume_path if self._is_actor and resume_path else self.config.model.path
             self.actor_module_fsdp, self.actor_optimizer, self.actor_lr_scheduler, self.actor_model_config = self._build_model_optimizer(
-                model_path=self.config.model.path,
+                model_path=actor_model_path,
                 fsdp_config=fsdp_config,
                 optim_config=optim_config,
                 override_model_config=override_model_config,
@@ -350,7 +354,35 @@ class ActorRolloutRefWorker(Worker):
         if self._is_actor:
             self.flops_counter = FlopsCounter(self.actor_model_config)
 
+            resume_path = self.config.model.get('resume_path', None)
+            if resume_path:
+                self._load_actor_training_state(resume_path)
+
         torch.cuda.empty_cache()
+
+    def _load_actor_training_state(self, checkpoint_path):
+        rank_state_path = os.path.join(checkpoint_path, f'training_state_rank_{self.rank}.pt')
+        if not os.path.isfile(rank_state_path):
+            raise FileNotFoundError(f'Missing actor training state: {rank_state_path}')
+
+        state = torch.load(rank_state_path, map_location='cpu', weights_only=False)
+        saved_world_size = int(state.get('world_size', -1))
+        if saved_world_size != self.world_size:
+            raise ValueError(
+                f'Checkpoint world_size={saved_world_size} does not match current world_size={self.world_size}'
+            )
+
+        self.actor_optimizer.load_state_dict(state['optimizer'])
+        self.actor_lr_scheduler.load_state_dict(state['lr_scheduler'])
+        if self._is_offload_optimizer:
+            offload_fsdp_optimizer(optimizer=self.actor_optimizer)
+
+        random.setstate(state['python_rng_state'])
+        np.random.set_state(state['numpy_rng_state'])
+        torch.set_rng_state(state['torch_rng_state'])
+        torch.cuda.set_rng_state(state['cuda_rng_state'], device=torch.cuda.current_device())
+        if self.rank == 0:
+            print(f'Restored actor optimizer, scheduler, and RNG state from {checkpoint_path}')
 
     @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO)
     def update_actor(self, data: DataProto):
@@ -525,12 +557,27 @@ class ActorRolloutRefWorker(Worker):
             os.makedirs(local_path, exist_ok=True)
             self.actor_module.save_pretrained(local_path, state_dict=state_dict)
             self.tokenizer.save_pretrained(local_path)
-            if hdfs_path is not None:
-                print(f'Uploading actor checkpoint to {hdfs_path}')
-                hdfs_io.makedirs(hdfs_path, exist_ok=True)
-                hdfs_io.copy(src=local_path, dst=hdfs_path)
 
         torch.distributed.barrier()
+        torch.save(
+            {
+                'world_size': self.world_size,
+                'optimizer': self.actor_optimizer.state_dict(),
+                'lr_scheduler': self.actor_lr_scheduler.state_dict(),
+                'python_rng_state': random.getstate(),
+                'numpy_rng_state': np.random.get_state(),
+                'torch_rng_state': torch.get_rng_state(),
+                'cuda_rng_state': torch.cuda.get_rng_state(torch.cuda.current_device()),
+            },
+            os.path.join(local_path, f'training_state_rank_{self.rank}.pt'),
+        )
+        torch.distributed.barrier()
+
+        if self.rank == 0 and hdfs_path is not None:
+            print(f'Uploading actor checkpoint to {hdfs_path}')
+            hdfs_io.makedirs(hdfs_path, exist_ok=True)
+            hdfs_io.copy(src=local_path, dst=hdfs_path)
+
         if self._is_offload_param:
             offload_fsdp_param_and_grad(module=self.actor_module_fsdp, offload_grad=self._is_offload_grad)
 

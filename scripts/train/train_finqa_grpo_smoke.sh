@@ -11,6 +11,7 @@ export RAY_memory_usage_threshold=0.99
 DATA_DIR="${DATA_DIR:-data/finance_finqa/grpo}"
 # Set BASE_MODEL to the merged FinQA SFT checkpoint before running GRPO.
 BASE_MODEL="${BASE_MODEL:-models/parallel_search_qwen25_3b_step900}"
+RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-null}"
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-finqa-litecoa-grpo-qwen2.5-3b-smoke}"
 WAND_PROJECT="Finance_Agent"
 TRAJECTORY_LOG_DIR="${TRAJECTORY_LOG_DIR:-trajectory/finance_finqa_grpo}"
@@ -34,7 +35,7 @@ LOGPROB_MICRO_BATCH_SIZE="${LOGPROB_MICRO_BATCH_SIZE:-8}"
 TOTAL_EPOCHS="${TOTAL_EPOCHS:-10}"
 TOTAL_TRAINING_STEPS="${TOTAL_TRAINING_STEPS:-10}"
 TEST_FREQ="${TEST_FREQ:-5}"
-SAVE_FREQ="${SAVE_FREQ:-20}"
+SAVE_FREQ="${SAVE_FREQ:-5}"
 
 mkdir -p "$RAY_TMPDIR" "$RAY_SPILL_DIR" "$TRAJECTORY_LOG_DIR" "verl_checkpoints/$EXPERIMENT_NAME"
 
@@ -52,6 +53,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     data.shuffle_train_dataloader=true \
     algorithm.adv_estimator=grpo \
     actor_rollout_ref.model.path="$BASE_MODEL" \
+    actor_rollout_ref.model.resume_path="$RESUME_FROM_CHECKPOINT" \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
     actor_rollout_ref.model.use_remove_padding=true \
     actor_rollout_ref.actor.optim.lr=1e-6 \
@@ -92,8 +94,10 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.experiment_name="$EXPERIMENT_NAME" \
     trainer.log_best_trajectory=true \
     trainer.trajectory_log_dir="$TRAJECTORY_LOG_DIR" \
+    trainer.resume_from_checkpoint="$RESUME_FROM_CHECKPOINT" \
     trainer.total_epochs="$TOTAL_EPOCHS" \
     trainer.total_training_steps="$TOTAL_TRAINING_STEPS" \
+    trainer.default_hdfs_dir=null \
     trainer.default_local_dir="verl_checkpoints/$EXPERIMENT_NAME" \
     +ray_kwargs.ray_init._temp_dir="$RAY_TMPDIR" \
     +ray_kwargs.ray_init.object_spilling_directory="$RAY_SPILL_DIR" \
