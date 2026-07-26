@@ -374,6 +374,23 @@ class ActorRolloutRefWorker(Worker):
 
         self.actor_optimizer.load_state_dict(state['optimizer'])
         self.actor_lr_scheduler.load_state_dict(state['lr_scheduler'])
+
+        configured_lr = float(self.config.actor.optim.lr)
+        self.actor_lr_scheduler.base_lrs = [configured_lr] * len(self.actor_optimizer.param_groups)
+        current_lrs = [configured_lr] * len(self.actor_optimizer.param_groups)
+        if hasattr(self.actor_lr_scheduler, 'lr_lambdas'):
+            current_lrs = [
+                base_lr * lr_lambda(self.actor_lr_scheduler.last_epoch)
+                for base_lr, lr_lambda in zip(
+                    self.actor_lr_scheduler.base_lrs,
+                    self.actor_lr_scheduler.lr_lambdas,
+                )
+            ]
+        for param_group, current_lr in zip(self.actor_optimizer.param_groups, current_lrs):
+            param_group['lr'] = current_lr
+            param_group['initial_lr'] = configured_lr
+        self.actor_lr_scheduler._last_lr = current_lrs
+
         if self._is_offload_optimizer:
             offload_fsdp_optimizer(optimizer=self.actor_optimizer)
 
@@ -382,7 +399,10 @@ class ActorRolloutRefWorker(Worker):
         torch.set_rng_state(state['torch_rng_state'])
         torch.cuda.set_rng_state(state['cuda_rng_state'], device=torch.cuda.current_device())
         if self.rank == 0:
-            print(f'Restored actor optimizer, scheduler, and RNG state from {checkpoint_path}')
+            print(
+                f'Restored actor optimizer, scheduler, and RNG state from {checkpoint_path}; '
+                f'configured_lr={configured_lr}, effective_lr={current_lrs[0]}'
+            )
 
     @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO)
     def update_actor(self, data: DataProto):

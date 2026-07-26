@@ -147,8 +147,11 @@ class DataParallelPPOActor(BasePPOActor):
             grad_norm = self.actor_module.clip_grad_norm_(max_norm=self.config.grad_clip)
         else:
             grad_norm = torch.nn.utils.clip_grad_norm_(self.actor_module.parameters(), max_norm=self.config.grad_clip)
+        if not torch.isfinite(grad_norm):
+            self.actor_optimizer.zero_grad()
+            return grad_norm, False
         self.actor_optimizer.step()
-        return grad_norm
+        return grad_norm, True
 
     def compute_log_prob(self, data: DataProto) -> torch.Tensor:
         """Compute the log probability of the responses given input_ids, attention_mask and position_ids
@@ -231,6 +234,9 @@ class DataParallelPPOActor(BasePPOActor):
                 micro_batches = mini_batch.split(self.config.ppo_micro_batch_size)
 
             self.actor_optimizer.zero_grad()
+            skip_optimizer_step = False
+            skip_reason_nonfinite = False
+            skip_reason_ppo_kl = False
 
             for data in micro_batches:
                 data = data.cuda()  # actor device is cpu when using offload
@@ -273,7 +279,22 @@ class DataParallelPPOActor(BasePPOActor):
                     metrics['actor/kl_coef'] = self.config.kl_loss_coef
 
                 loss = policy_loss / self.gradient_accumulation
-                loss.backward()
+                max_ppo_kl = self.config.get('max_ppo_kl', None)
+                finite_loss = bool(torch.isfinite(loss.detach()).item())
+                finite_ppo_kl = bool(torch.isfinite(ppo_kl.detach()).item())
+                excessive_ppo_kl = (
+                    max_ppo_kl is not None
+                    and finite_ppo_kl
+                    and abs(float(ppo_kl.detach().item())) > float(max_ppo_kl)
+                )
+                if not finite_loss or not finite_ppo_kl:
+                    skip_optimizer_step = True
+                    skip_reason_nonfinite = True
+                elif excessive_ppo_kl:
+                    skip_optimizer_step = True
+                    skip_reason_ppo_kl = True
+                elif not skip_optimizer_step:
+                    loss.backward()
 
                 data = {
                     'actor/entropy_loss': entropy_loss.detach().item(),
@@ -283,8 +304,20 @@ class DataParallelPPOActor(BasePPOActor):
                 }
                 append_to_dict(metrics, data)
 
-            grad_norm = self._optimizer_step()
-            data = {'actor/grad_norm': grad_norm.detach().item()}
+            if skip_optimizer_step:
+                self.actor_optimizer.zero_grad()
+                grad_norm = torch.zeros((), device=responses.device)
+                optimizer_step_applied = False
+            else:
+                grad_norm, optimizer_step_applied = self._optimizer_step()
+                if not optimizer_step_applied:
+                    skip_reason_nonfinite = True
+            data = {
+                'actor/grad_norm': grad_norm.detach().item(),
+                'actor/optimizer_step_skipped': float(not optimizer_step_applied),
+                'actor/skip_nonfinite': float(skip_reason_nonfinite),
+                'actor/skip_excessive_ppo_kl': float(skip_reason_ppo_kl),
+            }
             append_to_dict(metrics, data)
         self.actor_optimizer.zero_grad()
         return metrics
