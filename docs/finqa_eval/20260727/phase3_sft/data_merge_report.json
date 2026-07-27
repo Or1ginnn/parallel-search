@@ -1,0 +1,80 @@
+{
+  "accepted": 500,
+  "unique_ids": 500,
+  "rejected": 826,
+  "workers": [
+    {
+      "target_count": 125,
+      "accepted": 125,
+      "rejected": 250,
+      "elapsed_sec": 6514.681,
+      "model": "deepseek-v4-pro",
+      "retriever_url": "http://127.0.0.1:8000/retrieve",
+      "output": "data/finance_finqa/sft/finqa_sft_500_parallel/accepted_0.jsonl",
+      "rejected_output": "data/finance_finqa/sft/finqa_sft_500_parallel/rejected_0.jsonl",
+      "settings": {
+        "max_turns": 2,
+        "max_queries_per_turn": 2,
+        "topk": 3,
+        "require_answer_match": true,
+        "require_evidence_hit": true,
+        "strict": true
+      }
+    },
+    {
+      "target_count": 125,
+      "accepted": 125,
+      "rejected": 192,
+      "elapsed_sec": 5283.706,
+      "model": "deepseek-v4-pro",
+      "retriever_url": "http://127.0.0.1:8000/retrieve",
+      "output": "data/finance_finqa/sft/finqa_sft_500_parallel/accepted_1.jsonl",
+      "rejected_output": "data/finance_finqa/sft/finqa_sft_500_parallel/rejected_1.jsonl",
+      "settings": {
+        "max_turns": 2,
+        "max_queries_per_turn": 2,
+        "topk": 3,
+        "require_answer_match": true,
+        "require_evidence_hit": true,
+        "strict": true
+      }
+    },
+    {
+      "target_count": 125,
+      "accepted": 125,
+      "rejected": 200,
+      "elapsed_sec": 5268.986,
+      "model": "deepseek-v4-pro",
+      "retriever_url": "http://127.0.0.1:8000/retrieve",
+      "output": "data/finance_finqa/sft/finqa_sft_500_parallel/accepted_2.jsonl",
+      "rejected_output": "data/finance_finqa/sft/finqa_sft_500_parallel/rejected_2.jsonl",
+      "settings": {
+        "max_turns": 2,
+        "max_queries_per_turn": 2,
+        "topk": 3,
+        "require_answer_match": true,
+        "require_evidence_hit": true,
+        "strict": true
+      }
+    },
+    {
+      "target_count": 125,
+      "accepted": 125,
+      "rejected": 184,
+      "elapsed_sec": 5165.844,
+      "model": "deepseek-v4-pro",
+      "retriever_url": "http://127.0.0.1:8000/retrieve",
+      "output": "data/finance_finqa/sft/finqa_sft_500_parallel/accepted_3.jsonl",
+      "rejected_output": "data/finance_finqa/sft/finqa_sft_500_parallel/rejected_3.jsonl",
+      "settings": {
+        "max_turns": 2,
+        "max_queries_per_turn": 2,
+        "topk": 3,
+        "require_answer_match": true,
+        "require_evidence_hit": true,
+        "strict": true
+      }
+    }
+  ],
+  "output": "data/finance_finqa/sft/finqa_sft_500_parallel/finqa_sft_500.jsonl"
+}

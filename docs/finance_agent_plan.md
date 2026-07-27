@@ -1,115 +1,83 @@
-# Finance Research Agent 执行计划
+# Finance Research Agent 阶段计划与状态
 
 ## 项目目标
 
-面向金融投研问答中的多源证据获取问题，基于现有 Parallel Search Agent 核心算法，将单次检索扩展为并行多 query 检索。模型针对财报、表格与管理层讨论等金融语料，主动生成互补查询，基于真实证据完成数值与文本问答。
-
-核心链路：
+面向金融年报数值问答，将通用并行检索 Agent 迁移为金融投研问答 Agent。模型一次生成两个互补 query，在指定报告范围内检索真实文本与表格证据，再完成数值计算或事实回答。
 
 ```text
 金融问题
--> 并行生成 2 个检索 query
--> 金融语料检索
--> 按 query 回填证据
--> 基于 evidence 生成答案
--> GRPO 对齐检索路径与答案行为
+-> 识别所需变量
+-> 并行生成互补 query
+-> report-aware 金融检索
+-> 按 query 回填真实 evidence
+-> 生成简短答案
+-> SFT 冷启动与 GRPO 对齐
 ```
 
-## 总体原则
+## Phase 0：环境与初始模型
 
-当前模型已经具备并行搜索、真实 evidence 回填与基于证据回答的核心能力。因此不从头训练，也不立即开始金融微调。先将现有模型直接接入金融 retriever，完成零样本迁移验证；只有确认金融领域的 query 质量、表格定位或答案准确率存在明显域差后，再进行金融 SFT 和 GRPO 对齐。
+状态：完成。
 
-## Phase 0：基础代码与环境确认
+- 建立 `finance-agent` 开发分支和服务器环境。
+- 复用 Qwen2.5-3B 并行检索 step900 模型。
+- 验证 vLLM、retriever、并行 search action、information 回填与 trajectory 落盘。
 
-目标：确认现有 Parallel Search Agent 可以作为金融版本基础，无需重写核心 rollout。
+验收：原有并行检索链路可在金融环境中复现。
 
-- 固化当前并行检索代码版本，建立金融开发分支。
-- 检查 CUDA、PyTorch、vLLM、veRL 与 retriever 依赖。
-- 在金融项目目录跑通原 NQ 单样本 rollout，验证模型生成、并行搜索、证据回填、reward 和 trajectory 记录正常。
-- 保留原 NQ 代码与配置，用作金融实验的对照基线。
+## Phase 1：FinQA 数据与金融语料
 
-验收：原有并行搜索链路在新服务器项目中可复现。
+状态：完成。
 
-## Phase 1：金融数据与语料库构建
+- 处理官方 FinQA train/dev/test：6,251 / 883 / 1,147 个问题。
+- 从财报 `pre_text`、`post_text` 和 table 构建 30,440 个检索 chunks。
+- 检索语料排除 answer、program 与 gold evidence，防止标签泄漏。
+- 保留 page-level `report_id`、gold answer、program 与 evidence 供训练和评测使用。
 
-目标：建立问题、标准答案、真实金融证据与可检索语料的闭环。
+验收：三组报告无交集，gold evidence corpus 表达覆盖率均超过 99%。
 
-- 第一版以 FinQA 为主数据集，优先解决年报表格和数值问答。
-- 解析年报文本、表格和上下文，构建独立金融语料库。
-- 按公司、年份、报告章节、表格标题和文本片段切块，并保留元信息。
-- 统一训练样本字段：`question`、`gold_answer`、`evidence`、`company`、`year`、`report_id`。
-- 先抽 50 条人工检查，确认标准答案能被语料检索支撑。
+## Phase 2：金融 Retriever 与零样本基线
 
-验收：50 条问题中，大部分可以从金融检索库召回答案相关证据。
+状态：完成。
 
-## Phase 2：金融 Retriever 与检索评测
+- 使用 `intfloat/e5-base-v2` 与 FAISS 构建金融索引。
+- 保持批量 `/retrieve` 接口与分 query `<information>` 格式。
+- 加入 page-level report-aware retrieval，减少跨公司、跨年份干扰。
+- 完成 50 条检索 smoke、50 条 Agent smoke 与 883 条 dev 全量零样本评测。
 
-目标：让现有 Agent 访问金融语料，而不是原 Wiki/NQ 语料。
+验收：原 step900 模型无运行错误、无伪造 information，FinQA Numeric EM 为 11.83%。
 
-- 构建金融语料向量索引，并以现有 `/retrieve` 接口提供服务。
-- 检索结果附带公司、年份、报告章节、表格来源等元信息。
-- 保持现有批量 query 接口和 `<information>` 回填格式不变。
-- 对 50 条 smoke 样本统计检索召回率、证据命中率与 query 质量。
+## Phase 3：金融 SFT 冷启动
 
-验收：并行 query 可获得两路互补金融证据，且 observation 格式正常。
+状态：完成。
 
-## Phase 3：金融零样本并行搜索 Smoke
+- 使用 `deepseek-v4-pro` teacher 生成 `<think>/<search>/<answer>`。
+- 使用真实 E5 retriever 回填 `<information>`，teacher 不生成 evidence。
+- 先完成 20 条闭环，再由 4 worker 构造并合并 500 条唯一轨迹。
+- 转换为多轮 ShareGPT messages，将 information 放在 user observation 侧。
+- 使用 LLaMA-Factory + PEFT LoRA 对 step900 模型训练 2 epochs。
+- LoRA rank 64、alpha 128、effective batch 8、BF16、cosine LR。
 
-目标：先验证现有模型迁移到金融检索环境后的表现，再决定是否训练。
+验收：FinQA dev greedy Numeric EM 从 11.83% 提升至 45.01%。完整过程见 `finance_phase0_3_summary.md`。
 
-- 设计金融领域 prompt，但保留核心动作：
+## Phase 4：veRL GRPO 对齐
 
-  ```text
-  <search>query_1 || query_2</search>
-  ```
+状态：完成。
 
-- 两条 query 尽量承担不同角色：一条定位指标、数值或表格；另一条定位同比变化、原因或管理层解释。
-- 使用现有并行搜索模型对 50 条 FinQA 问题进行 rollout。
-- 检查格式正确率、平均 query 数、检索证据质量、答案覆盖率、数值正确率与伪造 evidence 比例。
+- 从已验证等价的 SFT merged v3 模型开始训练。
+- 使用 veRL + GRPO 与并行 vLLM rollout。
+- 保留答案 reward、搜索与证据 shaping、hard-zero 约束和 KL 稳定项。
+- 增加 checkpoint 恢复、best trajectory、W&B 训练正确率与流式 validation 汇总。
 
-验收：模型能稳定完成并行检索、真实证据回填和答案生成的闭环。
+验收：step200 FinQA dev greedy Numeric EM 达到 54.88%，格式有效率和 answer coverage 均为 100%，无 parser/agent warning。详见 `finance_phase4_grpo_report.md`。
 
-决策：
+## Phase 5：错误分析与业务化评测
 
-- 若双 query 行为、格式和答案表现已满足预期，可直接进入金融 GRPO。
-- 若金融术语、表格定位、数值计算或 query 质量存在明显域差，先进入金融 SFT。
+状态：待完成。
 
-## Phase 4：金融 SFT 冷启动（按 Phase 3 结果决定）
+- 按 retrieval miss、证据命中但计算错误、交互格式错误拆分失败样本。
+- 对 1-step 与多步 program 分层统计准确率。
+- 与单 query、原始并行模型、金融 SFT 和金融 GRPO 做统一对比。
+- 输出营收计算、比例变化、财务指标同比等典型案例。
+- 固化可复现命令、模型版本、数据版本和报告范围检索约束。
 
-目标：让 3B 模型适应金融查询、财报术语和证据表达。
-
-- 用 teacher + 真实金融 retriever 构造 500 至 1000 条高质量 SFT 轨迹。
-- 第一版轨迹保持简洁：
-
-  ```text
-  <think> -> <search> -> <information> -> <think> -> <answer>
-  ```
-
-- 不强制复杂 plan，优先保证并行搜索与金融问答行为稳定。
-- 使用现有 LoRA SFT 管线训练金融 adapter。
-- 在验证集上做 greedy 与 `temperature=1` 推理评测。
-
-验收：SFT 模型可稳定产生双 query 检索动作，并减少无效 query 与格式错误。
-
-## Phase 5：金融 GRPO 对齐
-
-目标：通过强化学习提升检索路径和最终答案的有效性。
-
-- 从 Phase 3 的现有模型或 Phase 4 的金融 SFT 模型启动训练。
-- 复用当前 veRL、parallel rollout 和 trajectory 保存逻辑。
-- 第一版 reward：答案正确给予正奖励；数值答案使用容差判分；无 answer、伪造 `<information>`、非法 action、超长循环直接置零。
-- 第二版加入 evidence reward：检索文本覆盖答案依据、表格行或关键指标时加分。
-- 跟踪训练 reward、验证准确率、平均搜索次数、证据命中率与格式稳定性。
-
-验收：并行搜索模型在金融验证集上优于单 query baseline，并能稳定给出证据驱动答案。
-
-## Phase 6：评测与业务 Demo
-
-目标：形成可展示、可写简历的金融 Agent 项目成果。
-
-- 对比单 query 检索、零样本并行搜索、金融 SFT 与金融 GRPO。
-- 核心指标：数值题准确率、文本题 EM/F1、证据命中率、平均 query 数、无效搜索率、伪造证据率。
-- 选取 3 个典型案例展示：营收计算、财务指标同比、业绩变化原因。
-- 输出金融投研问答 Demo 与完整实验报告。
-
-验收：完成可复现代码、数据格式、训练命令、评测报告和业务案例。
+验收：形成完整误差报告、对照实验表和可展示的金融投研问答案例。
