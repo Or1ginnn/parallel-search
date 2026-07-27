@@ -19,6 +19,20 @@ The Step200 result is +9.87 percentage points over the Step900 + SFT LoRA
 top3/info1500 reference (45.01%). It has no parser or agent warnings and no
 generated-information events.
 
+## Phase 4 Training Record
+
+The complete Chinese Phase 4 report is stored at
+[`docs/finance_phase4_grpo_report.md`](../../finance_phase4_grpo_report.md).
+The W&B run `q51bp5pw` was re-exported as raw JSON and an aligned CSV covering
+all 150 updates from Step51 through Step200. Reconstructed plots are available
+under `phase4_training/`:
+
+- `phase4_task_performance.png`
+- `phase4_optimization_stability.png`
+- `wandb_q51bp5pw_raw_history.json`
+- `wandb_q51bp5pw_history.csv`
+- `wandb_q51bp5pw_metadata.json`
+
 ## Merge Equivalence Checks
 
 The FP32 safe merge diagnostic recorded:
