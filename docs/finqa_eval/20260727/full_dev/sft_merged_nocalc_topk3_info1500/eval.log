@@ -1,0 +1,205 @@
+[config] backend=vllm
+[config] base_model=/mnt/data1/zar/finance/models/finqa_litecoa_sft_merged_nocalc
+[config] adapter=
+[config] retriever_url=http://127.0.0.1:8000/retrieve
+[config] num_samples=-1
+[config] batch_size=32
+[config] max_inf[config] base_model=/mnt/data1/zar/finance[config] do_sample=False
+[config] temperature=0.0
+[config] tensor_parallel_size=2
+[data] loaded_eval_samples=883
+[eval] batch 1-32/883
+[eval] progress done=32 errors=0 answer=25 em=10/32 format=25
+[eval] batch 33-64/883
+[eval] progress done=64 errors=0 answer=54 em=19/64 format=54
+[eval] batch 65-96/883
+[eval] progress done=96 errors=0 answer=80 em=28/96 format=80
+[eval] batch 97-128/883
+[eval] progress done=128 errors=0 answer=106 em=34/128 format=106
+[eval] batch 129-160/883
+[eval] progress done=160 errors=0 answer=137 em=47/160 format=137
+[eval] batch 161-192/883
+[eval] progress done=192 errors=0 answer=164 em=57/191 format=164
+[eval] batch 193-224/883
+[eval] progress done=224 errors=0 answer=194 em=65/222 format=194
+[eval] batch 225-256/883
+[eval] progress done=256 errors=0 answer=223 em=74/254 format=223
+[eval] batch 257-288/883
+[eval] progress done=288 errors=0 answer=251 em=81/285 format=251
+[eval] batch 289-320/883
+[eval] progress done=320 errors=0 answer=278 em=90/317 format=278
+[eval] batch 321-352/883
+[eval] progress done=352 errors=0 answer=303 em=97/348 format=303
+[eval] batch 353-384/883
+[eval] progress done=384 errors=0 answer=332 em=101/380 format=332
+[eval] batch 385-416/883
+[eval] progress done=416 errors=0 answer=362 em=112/412 format=362
+[eval] batch 417-448/883
+[eval] progress done=448 errors=0 answer=389 em=118/443 format=389
+[eval] batch 449-480/883
+[eval] progress done=480 errors=0 answer=418 em=124/472 format=418
+[eval] batch 481-512/883
+[eval] progress done=512 errors=0 answer=447 em=135/504 format=447
+[eval] batch 513-544/883
+[eval] progress done=544 errors=0 answer=475 em=142/535 format=475
+[eval] batch 545-576/883
+[eval] progress done=576 errors=0 answer=504 em=153/567 format=504
+[eval] batch 577-608/883
+[eval] progress done=608 errors=0 answer=529 em=159/598 format=529
+[eval] batch 609-640/883
+[eval] progress done=640 errors=0 answer=558 em=165/630 format=558
+[eval] batch 641-672/883
+[eval] progress done=672 errors=0 answer=587 em=174/662 format=587
+[eval] batch 673-704/883
+[eval] progress done=704 errors=0 answer=616 em=182/694 format=616
+[eval] batch 705-736/883
+[eval] progress done=736 errors=0 answer=645 em=188/725 format=645
+[eval] batch 737-768/883
+[eval] progress done=768 errors=0 answer=674 em=197/756 format=674
+[eval] batch 769-800/883
+[eval] progress done=800 errors=0 answer=700 em=202/788 format=700
+[eval] batch 801-832/883
+[eval] progress done=832 errors=0 answer=727 em=213/820 format=727
+[eval] batch 833-864/883
+[eval] progress done=864 errors=0 answer=754 em=224/852 format=754
+[eval] batch 865-883/883
+[eval] progress done=883 errors=0 answer=771 em=228/871 format=771
+{
+  "total": 883,
+  "errors": 0,
+  "format_valid": 771,
+  "answer_count": 771,
+  "generated_information_count": 0,
+  "parser_warning_count": 2,
+  "agent_warning_count": 112,
+  "max_turns_exceeded": 17,
+  "search_turn_distribution": {
+    "0": 32,
+    "1": 822,
+    "2": 10,
+    "3": 19
+  },
+  "query_count_distribution": {
+    "0": 32,
+    "1": 225,
+    "2": 593,
+    "3": 9,
+    "4": 6,
+    "5": 1,
+    "6": 17
+  },
+  "answer_em": 228,
+  "answer_raw_em": 64,
+  "answer_numeric_em": 228,
+  "answer_subem": 194,
+  "gold_count": 871
+}
+7-26 16:09:12 model_runner.py:1060] Starting to load model /mnt/data1/zar/finance/models/finqa_litecoa_sft_merged_nocalc...
+[1;36m(VllmWorkerProcess pid=1896491)[0;0m INFO 07-26 16:09:12 model_runner.py:1060] Starting to load model /mnt/data1/zar/finance/models/finqa_litecoa_sft_merged_nocalc...
+Loading safetensors checkpoint shards:   0% Completed | 0/1 [00:00<?, ?it/s]
+Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:08<00:00,  8.52s/it]
+Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:08<00:00,  8.52s/it]
+
+INFO 07-26 16:09:21 model_runner.py:1071] Loading model weights took 2.9347 GB
+[1;36m(VllmWorkerProcess pid=1896491)[0;0m INFO 07-26 16:09:21 model_runner.py:1071] Loading model weights took 2.9347 GB
+INFO 07-26 16:09:22 distributed_gpu_executor.py:57] # GPU blocks: 81832, # CPU blocks: 14563
+INFO 07-26 16:09:22 distributed_gpu_executor.py:61] Maximum concurrency for 16384 tokens per request: 79.91x
+INFO 07-26 16:09:24 model_runner.py:1402] Capturing the model for CUDA graphs. This may lead to unexpected consequences if the model is not static. To run the model in eager mode, set 'enforce_eager=True' or use '--enforce-eager' in the CLI.
+INFO 07-26 16:09:24 model_runner.py:1406] CUDA graphs can take additional 1~3 GiB memory per GPU. If you are running out of memory, consider decreasing `gpu_memory_utilization` or enforcing eager mode. You can also reduce the `max_num_seqs` as needed to decrease memory usage.
+[1;36m(VllmWorkerProcess pid=1896491)[0;0m INFO 07-26 16:09:24 model_runner.py:1402] Capturing the model for CUDA graphs. This may lead to unexpected consequences if the model is not static. To run the model in eager mode, set 'enforce_eager=True' or use '--enforce-eager' in the CLI.
+[1;36m(VllmWorkerProcess pid=1896491)[0;0m INFO 07-26 16:09:24 model_runner.py:1406] CUDA graphs can take additional 1~3 GiB memory per GPU. If you are running out of memory, consider decreasing `gpu_memory_utilization` or enforcing eager mode. You can also reduce the `max_num_seqs` as needed to decrease memory usage.
+[1;36m(VllmWorkerProcess pid=1896491)[0;0m INFO 07-26 16:09:37 custom_all_reduce.py:233] Registering 2555 cuda graph addresses
+INFO 07-26 16:09:37 custom_all_reduce.py:233] Registering 2555 cuda graph addresses
+[1;36m(VllmWorkerProcess pid=1896491)[0;0m INFO 07-26 16:09:37 model_runner.py:1530] Graph capturing finished in 13 secs.
+INFO 07-26 16:09:37 model_runner.py:1530] Graph capturing finished in 13 secs.
+[eval] batch 1-32/883
+[eval] progress done=32 errors=0 answer=25 em=10/32 format=25
+[eval] batch 33-64/883
+[eval] progress done=64 errors=0 answer=54 em=19/64 format=54
+[eval] batch 65-96/883
+[eval] progress done=96 errors=0 answer=80 em=28/96 format=80
+[eval] batch 97-128/883
+[eval] progress done=128 errors=0 answer=106 em=34/128 format=106
+[eval] batch 129-160/883
+[eval] progress done=160 errors=0 answer=137 em=47/160 format=137
+[eval] batch 161-192/883
+[eval] progress done=192 errors=0 answer=164 em=57/191 format=164
+[eval] batch 193-224/883
+[eval] progress done=224 errors=0 answer=194 em=65/222 format=194
+[eval] batch 225-256/883
+[eval] progress done=256 errors=0 answer=223 em=74/254 format=223
+[eval] batch 257-288/883
+[eval] progress done=288 errors=0 answer=251 em=81/285 format=251
+[eval] batch 289-320/883
+[eval] progress done=320 errors=0 answer=278 em=90/317 format=278
+[eval] batch 321-352/883
+[eval] progress done=352 errors=0 answer=303 em=97/348 format=303
+[eval] batch 353-384/883
+[eval] progress done=384 errors=0 answer=332 em=101/380 format=332
+[eval] batch 385-416/883
+[eval] progress done=416 errors=0 answer=362 em=112/412 format=362
+[eval] batch 417-448/883
+[eval] progress done=448 errors=0 answer=389 em=118/443 format=389
+[eval] batch 449-480/883
+[eval] progress done=480 errors=0 answer=418 em=124/472 format=418
+[eval] batch 481-512/883
+[eval] progress done=512 errors=0 answer=447 em=135/504 format=447
+[eval] batch 513-544/883
+[eval] progress done=544 errors=0 answer=475 em=142/535 format=475
+[eval] batch 545-576/883
+[eval] progress done=576 errors=0 answer=504 em=153/567 format=504
+[eval] batch 577-608/883
+[eval] progress done=608 errors=0 answer=529 em=159/598 format=529
+[eval] batch 609-640/883
+[eval] progress done=640 errors=0 answer=558 em=165/630 format=558
+[eval] batch 641-672/883
+[eval] progress done=672 errors=0 answer=587 em=174/662 format=587
+[eval] batch 673-704/883
+[eval] progress done=704 errors=0 answer=616 em=182/694 format=616
+[eval] batch 705-736/883
+[eval] progress done=736 errors=0 answer=645 em=188/725 format=645
+[eval] batch 737-768/883
+[eval] progress done=768 errors=0 answer=674 em=197/756 format=674
+[eval] batch 769-800/883
+[eval] progress done=800 errors=0 answer=700 em=202/788 format=700
+[eval] batch 801-832/883
+[eval] progress done=832 errors=0 answer=727 em=213/820 format=727
+[eval] batch 833-864/883
+[eval] progress done=864 errors=0 answer=754 em=224/852 format=754
+[eval] batch 865-883/883
+[eval] progress done=883 errors=0 answer=771 em=228/871 format=771
+{
+  "total": 883,
+  "errors": 0,
+  "format_valid": 771,
+  "answer_count": 771,
+  "generated_information_count": 0,
+  "parser_warning_count": 2,
+  "agent_warning_count": 112,
+  "max_turns_exceeded": 17,
+  "search_turn_distribution": {
+    "0": 32,
+    "1": 822,
+    "2": 10,
+    "3": 19
+  },
+  "query_count_distribution": {
+    "0": 32,
+    "1": 225,
+    "2": 593,
+    "3": 9,
+    "4": 6,
+    "5": 1,
+    "6": 17
+  },
+  "answer_em": 228,
+  "answer_raw_em": 64,
+  "answer_numeric_em": 228,
+  "answer_subem": 194,
+  "gold_count": 871
+}
+INFO 07-26 16:14:14 multiproc_worker_utils.py:134] Terminating local vLLM worker processes
+[1;36m(VllmWorkerProcess pid=1896491)[0;0m INFO 07-26 16:14:14 multiproc_worker_utils.py:242] Worker exiting
+[rank0]:[W726 16:14:16.587860398 CudaIPCTypes.cpp:16] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors]
+/home/zar/miniconda3/envs/searchr1/lib/python3.9/multiprocessing/resource_tracker.py:216: UserWarning: resource_tracker: There appear to be 1 leaked shared_memory objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

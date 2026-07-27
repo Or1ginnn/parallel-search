@@ -1,0 +1,23 @@
+{
+  "total": 883,
+  "errors": 0,
+  "format_valid": 0,
+  "has_plan": 0,
+  "plan_once": 0,
+  "answer_count": 881,
+  "generated_information_count": 0,
+  "parser_warning_count": 0,
+  "agent_warning_count": 2,
+  "max_turns_exceeded": 0,
+  "search_turn_distribution": {
+    "1": 883
+  },
+  "query_count_distribution": {
+    "2": 883
+  },
+  "answer_em": 103,
+  "answer_raw_em": 75,
+  "answer_numeric_em": 103,
+  "answer_subem": 120,
+  "gold_count": 871
+}

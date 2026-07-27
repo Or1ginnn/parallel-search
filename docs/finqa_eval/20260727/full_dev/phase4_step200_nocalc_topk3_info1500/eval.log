@@ -1,0 +1,52 @@
+[config] backend=vllm
+[config] base_model=verl_checkpoints/finqa-phase4-grpo-v3-stable/actor/global_step_200
+[config] adapter=
+[config] retriever_url=http://127.0.0.1:8000/retrieve
+[config] num_samples=-1
+[config] batch_size=128
+[config] max_turns=3
+[config] max_new_tokens=512
+[config] max_information_tokens=1500
+[config] topk=3
+[config] use_report_scope=True
+[config] financial_reasoning_hint=True
+[config] do_sample=False
+[config] temperature=0.0
+[config] tensor_parallel_size=2
+[data] loaded_eval_samples=883
+[eval] batch 1-128/883
+[eval] progress done=128 errors=0 answer=128 em=68/128 format=128
+[eval] batch 129-256/883
+[eval] progress done=256 errors=0 answer=256 em=145/254 format=256
+[eval] batch 257-384/883
+[eval] progress done=384 errors=0 answer=384 em=216/380 format=384
+[eval] batch 385-512/883
+[eval] progress done=512 errors=0 answer=512 em=287/504 format=512
+[eval] batch 513-640/883
+[eval] progress done=640 errors=0 answer=640 em=358/630 format=640
+[eval] batch 641-768/883
+[eval] progress done=768 errors=0 answer=768 em=417/756 format=768
+[eval] batch 769-883/883
+[eval] progress done=883 errors=0 answer=883 em=478/871 format=883
+{
+  "total": 883,
+  "errors": 0,
+  "format_valid": 883,
+  "answer_count": 883,
+  "generated_information_count": 0,
+  "parser_warning_count": 0,
+  "agent_warning_count": 0,
+  "max_turns_exceeded": 0,
+  "search_turn_distribution": {
+    "1": 883
+  },
+  "query_count_distribution": {
+    "2": 882,
+    "3": 1
+  },
+  "answer_em": 478,
+  "answer_raw_em": 192,
+  "answer_numeric_em": 478,
+  "answer_subem": 335,
+  "gold_count": 871
+}

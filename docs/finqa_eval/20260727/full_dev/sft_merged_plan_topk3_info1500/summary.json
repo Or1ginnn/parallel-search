@@ -1,0 +1,31 @@
+{
+  "total": 883,
+  "errors": 0,
+  "format_valid": 741,
+  "answer_count": 741,
+  "generated_information_count": 0,
+  "parser_warning_count": 2,
+  "agent_warning_count": 142,
+  "max_turns_exceeded": 23,
+  "search_turn_distribution": {
+    "0": 57,
+    "1": 799,
+    "2": 4,
+    "3": 23
+  },
+  "query_count_distribution": {
+    "0": 57,
+    "1": 145,
+    "2": 647,
+    "3": 9,
+    "4": 6,
+    "5": 1,
+    "6": 17,
+    "9": 1
+  },
+  "answer_em": 223,
+  "answer_raw_em": 72,
+  "answer_numeric_em": 223,
+  "answer_subem": 192,
+  "gold_count": 871
+}

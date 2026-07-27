@@ -1,0 +1,17 @@
+{
+  "base_path": "/mnt/data1/zar/search-1/Search-R1/verl_checkpoints/nq-litecoa-grpo-qwen2.5-3b-base-hard/actor/global_step_900",
+  "adapter_path": "/mnt/data1/zar/geo/search-r1/verl_checkpoints/nq-litecoa-grpo-qwen2.5-3b-base-hard/finance_finqa_qwen25_3b_sft_lora",
+  "output_path": "/mnt/data1/zar/finance/models/finqa_litecoa_sft_merged_fp32_v2",
+  "dtype": "float32",
+  "attention_implementation": "eager",
+  "dynamic_vs_in_memory_merged": {
+    "max_abs_diff": 4.673004150390625e-05,
+    "mean_abs_diff": 5.717841304431204e-06,
+    "allclose_atol_1e-4_rtol_1e-4": true
+  },
+  "dynamic_vs_reloaded_merged": {
+    "max_abs_diff": 4.673004150390625e-05,
+    "mean_abs_diff": 5.717841304431204e-06,
+    "allclose_atol_1e-4_rtol_1e-4": true
+  }
+}

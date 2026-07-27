@@ -1,0 +1,195 @@
+[config] backend=vllm
+[config] base_model=models/parallel_search_qwen25_3b_step900
+[config] adapter=
+[config] retriever_url=http://127.0.0.1:8000/retrieve
+[config] num_samples=-1
+[config] batch_size=32
+[config] max_turns=3
+[config] do_sample=False
+[config] temperature=0.0
+[config] tensor_parallel_size=2
+[data] loaded_eval_samples=883
+[eval] batch 1-32/883
+[eval] progress done=32 errors=0 answer=31 em=5/32 format=0
+[eval] batch 33-64/883
+[eval] progress done=64 errors=0 answer=63 em=10/64 format=0
+[eval] batch 65-96/883
+[eval] progress done=96 errors=0 answer=95 em=13/96 format=0
+[eval] batch 97-128/883
+[eval] progress done=128 errors=0 answer=127 em=21/128 format=0
+[eval] batch 129-160/883
+[eval] progress done=160 errors=0 answer=159 em=21/160 format=0
+[eval] batch 161-192/883
+[eval] progress done=192 errors=0 answer=191 em=26/191 format=0
+[eval] batch 193-224/883
+[eval] progress done=224 errors=0 answer=223 em=28/222 format=0
+[eval] batch 225-256/883
+[eval] progress done=256 errors=0 answer=255 em=32/254 format=0
+[eval] batch 257-288/883
+[eval] progress done=288 errors=0 answer=287 em=32/285 format=0
+[eval] batch 289-320/883
+[eval] progress done=320 errors=0 answer=319 em=37/317 format=0
+[eval] batch 321-352/883
+[eval] progress done=352 errors=0 answer=351 em=41/348 format=0
+[eval] batch 353-384/883
+[eval] progress done=384 errors=0 answer=383 em=45/380 format=0
+[eval] batch 385-416/883
+[eval] progress done=416 errors=0 answer=414 em=48/412 format=0
+[eval] batch 417-448/883
+[eval] progress done=448 errors=0 answer=446 em=50/443 format=0
+[eval] batch 449-480/883
+[eval] progress done=480 errors=0 answer=478 em=52/472 format=0
+[eval] batch 481-512/883
+[eval] progress done=512 errors=0 answer=510 em=56/504 format=0
+[eval] batch 513-544/883
+[eval] progress done=544 errors=0 answer=542 em=60/535 format=0
+[eval] batch 545-576/883
+[eval] progress done=576 errors=0 answer=574 em=65/567 format=0
+[eval] batch 577-608/883
+[eval] progress done=608 errors=0 answer=606 em=74/598 format=0
+[eval] batch 609-640/883
+[eval] progress done=640 errors=0 answer=638 em=76/630 format=0
+[eval] batch 641-672/883
+[eval] progress done=672 errors=0 answer=670 em=81/662 format=0
+[eval] batch 673-704/883
+[eval] progress done=704 errors=0 answer=702 em=84/694 format=0
+[eval] batch 705-736/883
+[eval] progress done=736 errors=0 answer=734 em=86/725 format=0
+[eval] batch 737-768/883
+[eval] progress done=768 errors=0 answer=766 em=89/756 format=0
+[eval] batch 769-800/883
+[eval] progress done=800 errors=0 answer=798 em=91/788 format=0
+[eval] batch 801-832/883
+[eval] progress done=832 errors=0 answer=830 em=95/820 format=0
+[eval] batch 833-864/883
+[eval] progress done=864 errors=0 answer=862 em=99/852 format=0
+[eval] batch 865-883/883
+[eval] progress done=883 errors=0 answer=881 em=103/871 format=0
+{
+  "total": 883,
+  "errors": 0,
+  "format_valid": 0,
+  "has_plan": 0,
+  "plan_once": 0,
+  "answer_count": 881,
+  "generated_information_count": 0,
+  "parser_warning_count": 0,
+  "agent_warning_count": 2,
+  "max_turns_exceeded": 0,
+  "search_turn_distribution": {
+    "1": 883
+  },
+  "query_count_distribution": {
+    "2": 883
+  },
+  "answer_em": 103,
+  "answer_raw_em": 75,
+  "answer_numeric_em": 103,
+  "answer_subem": 120,
+  "gold_count": 871
+}
+nication handle: Handle(connect_ip='127.0.0.1', local_reader_ranks=[1], buffer=<vllm.distributed.device_communicators.shm_broadcast.ShmRingBuffer object at 0x7fe3e1ec7ca0>, local_subscribe_port=55301, remote_subscribe_port=None)
+INFO 07-26 11:46:13 model_runner.py:1060] Starting to load model models/parallel_search_qwen25_3b_step900...
+[1;36m(VllmWorkerProcess pid=1739099)[0;0m INFO 07-26 11:46:13 model_runner.py:1060] Starting to load model models/parallel_search_qwen25_3b_step900...
+Loading safetensors checkpoint shards:   0% Completed | 0/3 [00:00<?, ?it/s]
+Loading safetensors checkpoint shards:  33% Completed | 1/3 [00:10<00:21, 10.53s/it]
+Loading safetensors checkpoint shards:  67% Completed | 2/3 [00:15<00:07,  7.36s/it]
+Loading safetensors checkpoint shards: 100% Completed | 3/3 [00:25<00:00,  8.61s/it]
+Loading safetensors checkpoint shards: 100% Completed | 3/3 [00:25<00:00,  8.59s/it]
+
+[1;36m(VllmWorkerProcess pid=1739099)[0;0m INFO 07-26 11:46:39 model_runner.py:1071] Loading model weights took 2.9347 GB
+INFO 07-26 11:46:39 model_runner.py:1071] Loading model weights took 2.9347 GB
+INFO 07-26 11:46:40 distributed_gpu_executor.py:57] # GPU blocks: 81832, # CPU blocks: 14563
+INFO 07-26 11:46:40 distributed_gpu_executor.py:61] Maximum concurrency for 16384 tokens per request: 79.91x
+[1;36m(VllmWorkerProcess pid=1739099)[0;0m INFO 07-26 11:46:42 model_runner.py:1402] Capturing the model for CUDA graphs. This may lead to unexpected consequences if the model is not static. To run the model in eager mode, set 'enforce_eager=True' or use '--enforce-eager' in the CLI.
+[1;36m(VllmWorkerProcess pid=1739099)[0;0m INFO 07-26 11:46:42 model_runner.py:1406] CUDA graphs can take additional 1~3 GiB memory per GPU. If you are running out of memory, consider decreasing `gpu_memory_utilization` or enforcing eager mode. You can also reduce the `max_num_seqs` as needed to decrease memory usage.
+INFO 07-26 11:46:42 model_runner.py:1402] Capturing the model for CUDA graphs. This may lead to unexpected consequences if the model is not static. To run the model in eager mode, set 'enforce_eager=True' or use '--enforce-eager' in the CLI.
+INFO 07-26 11:46:42 model_runner.py:1406] CUDA graphs can take additional 1~3 GiB memory per GPU. If you are running out of memory, consider decreasing `gpu_memory_utilization` or enforcing eager mode. You can also reduce the `max_num_seqs` as needed to decrease memory usage.
+[1;36m(VllmWorkerProcess pid=1739099)[0;0m INFO 07-26 11:46:55 custom_all_reduce.py:233] Registering 2555 cuda graph addresses
+INFO 07-26 11:46:55 custom_all_reduce.py:233] Registering 2555 cuda graph addresses
+[1;36m(VllmWorkerProcess pid=1739099)[0;0m INFO 07-26 11:46:55 model_runner.py:1530] Graph capturing finished in 13 secs.
+INFO 07-26 11:46:55 model_runner.py:1530] Graph capturing finished in 13 secs.
+[eval] batch 1-32/883
+[eval] progress done=32 errors=0 answer=31 em=5/32 format=0
+[eval] batch 33-64/883
+[eval] progress done=64 errors=0 answer=63 em=10/64 format=0
+[eval] batch 65-96/883
+[eval] progress done=96 errors=0 answer=95 em=13/96 format=0
+[eval] batch 97-128/883
+[eval] progress done=128 errors=0 answer=127 em=21/128 format=0
+[eval] batch 129-160/883
+[eval] progress done=160 errors=0 answer=159 em=21/160 format=0
+[eval] batch 161-192/883
+[eval] progress done=192 errors=0 answer=191 em=26/191 format=0
+[eval] batch 193-224/883
+[eval] progress done=224 errors=0 answer=223 em=28/222 format=0
+[eval] batch 225-256/883
+[eval] progress done=256 errors=0 answer=255 em=32/254 format=0
+[eval] batch 257-288/883
+[eval] progress done=288 errors=0 answer=287 em=32/285 format=0
+[eval] batch 289-320/883
+[eval] progress done=320 errors=0 answer=319 em=37/317 format=0
+[eval] batch 321-352/883
+[eval] progress done=352 errors=0 answer=351 em=41/348 format=0
+[eval] batch 353-384/883
+[eval] progress done=384 errors=0 answer=383 em=45/380 format=0
+[eval] batch 385-416/883
+[eval] progress done=416 errors=0 answer=414 em=48/412 format=0
+[eval] batch 417-448/883
+[eval] progress done=448 errors=0 answer=446 em=50/443 format=0
+[eval] batch 449-480/883
+[eval] progress done=480 errors=0 answer=478 em=52/472 format=0
+[eval] batch 481-512/883
+[eval] progress done=512 errors=0 answer=510 em=56/504 format=0
+[eval] batch 513-544/883
+[eval] progress done=544 errors=0 answer=542 em=60/535 format=0
+[eval] batch 545-576/883
+[eval] progress done=576 errors=0 answer=574 em=65/567 format=0
+[eval] batch 577-608/883
+[eval] progress done=608 errors=0 answer=606 em=74/598 format=0
+[eval] batch 609-640/883
+[eval] progress done=640 errors=0 answer=638 em=76/630 format=0
+[eval] batch 641-672/883
+[eval] progress done=672 errors=0 answer=670 em=81/662 format=0
+[eval] batch 673-704/883
+[eval] progress done=704 errors=0 answer=702 em=84/694 format=0
+[eval] batch 705-736/883
+[eval] progress done=736 errors=0 answer=734 em=86/725 format=0
+[eval] batch 737-768/883
+[eval] progress done=768 errors=0 answer=766 em=89/756 format=0
+[eval] batch 769-800/883
+[eval] progress done=800 errors=0 answer=798 em=91/788 format=0
+[eval] batch 801-832/883
+[eval] progress done=832 errors=0 answer=830 em=95/820 format=0
+[eval] batch 833-864/883
+[eval] progress done=864 errors=0 answer=862 em=99/852 format=0
+[eval] batch 865-883/883
+[eval] progress done=883 errors=0 answer=881 em=103/871 format=0
+{
+  "total": 883,
+  "errors": 0,
+  "format_valid": 0,
+  "has_plan": 0,
+  "plan_once": 0,
+  "answer_count": 881,
+  "generated_information_count": 0,
+  "parser_warning_count": 0,
+  "agent_warning_count": 2,
+  "max_turns_exceeded": 0,
+  "search_turn_distribution": {
+    "1": 883
+  },
+  "query_count_distribution": {
+    "2": 883
+  },
+  "answer_em": 103,
+  "answer_raw_em": 75,
+  "answer_numeric_em": 103,
+  "answer_subem": 120,
+  "gold_count": 871
+}
+INFO 07-26 11:48:08 multiproc_worker_utils.py:134] Terminating local vLLM worker processes
+[1;36m(VllmWorkerProcess pid=1739099)[0;0m INFO 07-26 11:48:08 multiproc_worker_utils.py:242] Worker exiting
+[rank0]:[W726 11:48:09.280861360 CudaIPCTypes.cpp:16] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors]
+/home/zar/miniconda3/envs/searchr1/lib/python3.9/multiprocessing/resource_tracker.py:216: UserWarning: resource_tracker: There appear to be 1 leaked shared_memory objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

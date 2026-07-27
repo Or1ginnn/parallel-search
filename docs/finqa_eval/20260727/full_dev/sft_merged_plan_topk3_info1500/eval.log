@@ -1,0 +1,99 @@
+[config] backend=vllm
+[config] base_model=/mnt/data1/zar/finance/models/finqa_litecoa_sft_merged_nocalc
+[config] adapter=
+[config] retriever_url=http://127.0.0.1:8000/retrieve
+[config] num_samples=-1
+[config] batch_size=32
+[config] max_information_tokens=1500
+[config] max_turns=3
+[config] do_sample=False
+[config] temperature=0.0
+[config] tensor_parallel_size=2
+[data] loaded_eval_samples=883
+[eval] batch 1-32/883
+[eval] progress done=32 errors=0 answer=28 em=7/32 format=28
+[eval] batch 33-64/883
+[eval] progress done=64 errors=0 answer=56 em=19/64 format=56
+[eval] batch 65-96/883
+[eval] progress done=96 errors=0 answer=81 em=27/96 format=81
+[eval] batch 97-128/883
+[eval] progress done=128 errors=0 answer=107 em=35/128 format=107
+[eval] batch 129-160/883
+[eval] progress done=160 errors=0 answer=136 em=46/160 format=136
+[eval] batch 161-192/883
+[eval] progress done=192 errors=0 answer=161 em=54/191 format=161
+[eval] batch 193-224/883
+[eval] progress done=224 errors=0 answer=190 em=61/222 format=190
+[eval] batch 225-256/883
+[eval] progress done=256 errors=0 answer=219 em=72/254 format=219
+[eval] batch 257-288/883
+[eval] progress done=288 errors=0 answer=250 em=80/285 format=250
+[eval] batch 289-320/883
+[eval] progress done=320 errors=0 answer=278 em=89/317 format=278
+[eval] batch 321-352/883
+[eval] progress done=352 errors=0 answer=304 em=93/348 format=304
+[eval] batch 353-384/883
+[eval] progress done=384 errors=0 answer=332 em=99/380 format=332
+[eval] batch 385-416/883
+[eval] progress done=416 errors=0 answer=360 em=108/412 format=360
+[eval] batch 417-448/883
+[eval] progress done=448 errors=0 answer=384 em=113/443 format=384
+[eval] batch 449-480/883
+[eval] progress done=480 errors=0 answer=411 em=121/472 format=411
+[eval] batch 481-512/883
+[eval] progress done=512 errors=0 answer=438 em=132/504 format=438
+[eval] batch 513-544/883
+[eval] progress done=544 errors=0 answer=465 em=141/535 format=465
+[eval] batch 545-576/883
+[eval] progress done=576 errors=0 answer=493 em=153/567 format=493
+[eval] batch 577-608/883
+[eval] progress done=608 errors=0 answer=519 em=159/598 format=519
+[eval] batch 609-640/883
+[eval] progress done=640 errors=0 answer=545 em=163/630 format=545
+[eval] batch 641-672/883
+[eval] progress done=672 errors=0 answer=572 em=169/662 format=572
+[eval] batch 673-704/883
+[eval] progress done=704 errors=0 answer=597 em=175/694 format=597
+[eval] batch 705-736/883
+[eval] progress done=736 errors=0 answer=625 em=179/725 format=625
+[eval] batch 737-768/883
+[eval] progress done=768 errors=0 answer=648 em=187/756 format=648
+[eval] batch 769-800/883
+[eval] progress done=800 errors=0 answer=676 em=195/788 format=676
+[eval] batch 801-832/883
+[eval] progress done=832 errors=0 answer=698 em=204/820 format=698
+[eval] batch 833-864/883
+[eval] progress done=864 errors=0 answer=725 em=217/852 format=725
+[eval] batch 865-883/883
+[eval] progress done=883 errors=0 answer=741 em=223/871 format=741
+{
+  "total": 883,
+  "errors": 0,
+  "format_valid": 741,
+  "answer_count": 741,
+  "generated_information_count": 0,
+  "parser_warning_count": 2,
+  "agent_warning_count": 142,
+  "max_turns_exceeded": 23,
+  "search_turn_distribution": {
+    "0": 57,
+    "1": 799,
+    "2": 4,
+    "3": 23
+  },
+  "query_count_distribution": {
+    "0": 57,
+    "1": 145,
+    "2": 647,
+    "3": 9,
+    "4": 6,
+    "5": 1,
+    "6": 17,
+    "9": 1
+  },
+  "answer_em": 223,
+  "answer_raw_em": 72,
+  "answer_numeric_em": 223,
+  "answer_subem": 192,
+  "gold_count": 871
+}

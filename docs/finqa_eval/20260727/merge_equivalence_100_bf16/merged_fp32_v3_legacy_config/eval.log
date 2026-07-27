@@ -1,0 +1,42 @@
+[config] backend=vllm
+[config] base_model=/mnt/data1/zar/finance/models/finqa_litecoa_sft_merged_fp32_v3
+[config] adapter=
+[config] retriever_url=http://127.0.0.1:8000/retrieve
+[config] num_samples=100
+[config] batch_size=32
+[config] max_information_tokens=1500
+[config] max_turns=3
+[config] do_sample=False
+[config] temperature=0.0
+[config] tensor_parallel_size=2
+[data] loaded_eval_samples=100
+[eval] batch 1-32/100
+[eval] progress done=32 errors=0 answer=32 em=13/32 format=32
+[eval] batch 33-64/100
+[eval] progress done=64 errors=0 answer=64 em=26/64 format=64
+[eval] batch 65-96/100
+[eval] progress done=96 errors=0 answer=96 em=41/96 format=96
+[eval] batch 97-100/100
+[eval] progress done=100 errors=0 answer=100 em=44/100 format=100
+{
+  "total": 100,
+  "errors": 0,
+  "format_valid": 100,
+  "answer_count": 100,
+  "generated_information_count": 0,
+  "parser_warning_count": 0,
+  "agent_warning_count": 0,
+  "max_turns_exceeded": 0,
+  "search_turn_distribution": {
+    "1": 100
+  },
+  "query_count_distribution": {
+    "2": 99,
+    "3": 1
+  },
+  "answer_em": 44,
+  "answer_raw_em": 19,
+  "answer_numeric_em": 44,
+  "answer_subem": 34,
+  "gold_count": 100
+}

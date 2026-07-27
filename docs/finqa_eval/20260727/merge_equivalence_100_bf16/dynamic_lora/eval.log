@@ -1,0 +1,47 @@
+[config] backend=vllm
+[config] base_model=models/parallel_search_qwen25_3b_step900
+[config] adapter=/mnt/data1/zar/geo/search-r1/verl_checkpoints/nq-litecoa-grpo-qwen2.5-3b-base-hard/finance_finqa_qwen25_3b_sft_lora
+[config] retriever_url=http://127.0.0.1:8000/retrieve
+[config] num_samples=100
+[config] batch_size=32
+[config] max_information_tokens=1500
+[config] max_turns=3
+[config] do_sample=False
+[config] temperature=0.0
+[config] tensor_parallel_size=2
+[data] loaded_eval_samples=100
+[eval] batch 1-32/100
+[eval] progress done=32 errors=0 answer=29 em=16/32 format=29
+[eval] batch 33-64/100
+[eval] progress done=64 errors=0 answer=60 em=28/64 format=60
+[eval] batch 65-96/100
+[eval] progress done=96 errors=0 answer=91 em=41/96 format=91
+[eval] batch 97-100/100
+[eval] progress done=100 errors=0 answer=95 em=44/100 format=95
+{
+  "total": 100,
+  "errors": 0,
+  "format_valid": 95,
+  "answer_count": 95,
+  "generated_information_count": 0,
+  "parser_warning_count": 0,
+  "agent_warning_count": 5,
+  "max_turns_exceeded": 5,
+  "search_turn_distribution": {
+    "1": 94,
+    "2": 1,
+    "3": 5
+  },
+  "query_count_distribution": {
+    "2": 92,
+    "3": 2,
+    "4": 1,
+    "6": 3,
+    "7": 2
+  },
+  "answer_em": 44,
+  "answer_raw_em": 16,
+  "answer_numeric_em": 44,
+  "answer_subem": 37,
+  "gold_count": 100
+}

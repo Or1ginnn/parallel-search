@@ -1,0 +1,22 @@
+{
+  "total": 100,
+  "errors": 0,
+  "format_valid": 100,
+  "answer_count": 100,
+  "generated_information_count": 0,
+  "parser_warning_count": 0,
+  "agent_warning_count": 0,
+  "max_turns_exceeded": 0,
+  "search_turn_distribution": {
+    "1": 100
+  },
+  "query_count_distribution": {
+    "2": 99,
+    "3": 1
+  },
+  "answer_em": 44,
+  "answer_raw_em": 19,
+  "answer_numeric_em": 44,
+  "answer_subem": 34,
+  "gold_count": 100
+}

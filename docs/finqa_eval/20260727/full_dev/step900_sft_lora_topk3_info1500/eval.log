@@ -1,0 +1,208 @@
+[config] backend=vllm
+[config] base_model=models/parallel_search_qwen25_3b_step900
+[config] adapter=/mnt/data1/zar/geo/search-r1/verl_checkpoints/nq-litecoa-grpo-qwen2.5-3b-base-hard/finance_finqa_qwen25_3b_sft_lora
+[[config] backend=vllm
+[config] base_model=models/parallel_search_qwen25_3b_step900
+[config] adapter=/mnt/data1/zar/geo/search-r1/verl_checkpoints/nq-litecoa-grpo-qwen2.5-3b-base-hard/finance_finqa_qwen25_3b_sft_lora
+[config] retriever_url=h[data] loaded_eval_samples=883
+[eval] batch 1-32/883
+[eval] progress done=32 errors=0 answer=31 em=17/32 format=0
+[eval] batch 33-64/883
+[eval] progress done=64 errors=0 answer=61 em=26/64 format=0
+[eval] batch 65-96/883
+[eval] progress done=96 errors=0 answer=93 em=40/96 format=0
+[eval] batch 97-128/883
+[eval] progress done=128 errors=0 answer=125 em=59/128 format=0
+[eval] batch 129-160/883
+[eval] progress done=160 errors=0 answer=157 em=77/160 format=0
+[eval] batch 161-192/883
+[eval] progress done=192 errors=0 answer=188 em=87/191 format=0
+[eval] batch 193-224/883
+[eval] progress done=224 errors=0 answer=219 em=99/222 format=0
+[eval] batch 225-256/883
+[eval] progress done=256 errors=0 answer=250 em=117/254 format=0
+[eval] batch 257-288/883
+[eval] progress done=288 errors=0 answer=282 em=129/285 format=0
+[eval] batch 289-320/883
+[eval] progress done=320 errors=0 answer=313 em=144/317 format=0
+[eval] batch 321-352/883
+[eval] progress done=352 errors=0 answer=345 em=156/348 format=0
+[eval] batch 353-384/883
+[eval] progress done=384 errors=0 answer=375 em=170/380 format=0
+[eval] batch 385-416/883
+[eval] progress done=416 errors=0 answer=405 em=187/412 format=0
+[eval] batch 417-448/883
+[eval] progress done=448 errors=0 answer=434 em=203/443 format=0
+[eval] batch 449-480/883
+[eval] progress done=480 errors=0 answer=466 em=215/472 format=0
+[eval] batch 481-512/883
+[eval] progress done=512 errors=0 answer=498 em=232/504 format=0
+[eval] batch 513-544/883
+[eval] progress done=544 errors=0 answer=529 em=246/535 format=0
+[eval] batch 545-576/883
+[eval] progress done=576 errors=0 answer=561 em=265/567 format=0
+[eval] batch 577-608/883
+[eval] progress done=608 errors=0 answer=593 em=281/598 format=0
+[eval] batch 609-640/883
+[eval] progress done=640 errors=0 answer=624 em=289/630 format=0
+[eval] batch 641-672/883
+[eval] progress done=672 errors=0 answer=655 em=308/662 format=0
+[eval] batch 673-704/883
+[eval] progress done=704 errors=0 answer=687 em=320/694 format=0
+[eval] batch 705-736/883
+[eval] progress done=736 errors=0 answer=717 em=332/725 format=0
+[eval] batch 737-768/883
+[eval] progress done=768 errors=0 answer=748 em=342/756 format=0
+[eval] batch 769-800/883
+[eval] progress done=800 errors=0 answer=778 em=355/788 format=0
+[eval] batch 801-832/883
+[eval] progress done=832 errors=0 answer=808 em=367/820 format=0
+[eval] batch 833-864/883
+[eval] progress done=864 errors=0 answer=839 em=383/852 format=0
+[eval] batch 865-883/883
+[eval] progress done=883 errors=0 answer=856 em=392/871 format=0
+{
+  "total": 883,
+  "errors": 0,
+  "format_valid": 0,
+  "has_plan": 0,
+  "plan_once": 0,
+  "answer_count": 856,
+  "generated_information_count": 0,
+  "parser_warning_count": 4,
+  "agent_warning_count": 27,
+  "max_turns_exceeded": 26,
+  "search_turn_distribution": {
+    "1": 838,
+    "2": 15,
+    "3": 30
+  },
+  "query_count_distribution": {
+    "2": 813,
+    "3": 26,
+    "4": 16,
+    "5": 5,
+    "6": 21,
+    "7": 1,
+    "9": 1
+  },
+  "answer_em": 392,
+  "answer_raw_em": 105,
+  "answer_numeric_em": 392,
+  "answer_subem": 298,
+  "gold_count": 871
+}
+0] Starting to load model models/parallel_search_qwen25_3b_step900...
+[1;36m(VllmWorkerProcess pid=1773141)[0;0m INFO 07-26 12:34:25 model_runner.py:1060] Starting to load model models/parallel_search_qwen25_3b_step900...
+Loading safetensors checkpoint shards:   0% Completed | 0/3 [00:00<?, ?it/s]
+Loading safetensors checkpoint shards:  33% Completed | 1/3 [00:00<00:01,  1.41it/s]
+Loading safetensors checkpoint shards:  67% Completed | 2/3 [00:01<00:00,  1.84it/s]
+Loading safetensors checkpoint shards: 100% Completed | 3/3 [00:01<00:00,  1.49it/s]
+Loading safetensors checkpoint shards: 100% Completed | 3/3 [00:01<00:00,  1.53it/s]
+
+[1;36m(VllmWorkerProcess pid=1773141)[0;0m INFO 07-26 12:34:27 model_runner.py:1071] Loading model weights took 2.9347 GB
+INFO 07-26 12:34:27 model_runner.py:1071] Loading model weights took 2.9347 GB
+INFO 07-26 12:34:31 distributed_gpu_executor.py:57] # GPU blocks: 81299, # CPU blocks: 14563
+INFO 07-26 12:34:31 distributed_gpu_executor.py:61] Maximum concurrency for 16384 tokens per request: 79.39x
+[1;36m(VllmWorkerProcess pid=1773141)[0;0m INFO 07-26 12:34:33 model_runner.py:1402] Capturing the model for CUDA graphs. This may lead to unexpected consequences if the model is not static. To run the model in eager mode, set 'enforce_eager=True' or use '--enforce-eager' in the CLI.
+[1;36m(VllmWorkerProcess pid=1773141)[0;0m INFO 07-26 12:34:33 model_runner.py:1406] CUDA graphs can take additional 1~3 GiB memory per GPU. If you are running out of memory, consider decreasing `gpu_memory_utilization` or enforcing eager mode. You can also reduce the `max_num_seqs` as needed to decrease memory usage.
+INFO 07-26 12:34:33 model_runner.py:1402] Capturing the model for CUDA graphs. This may lead to unexpected consequences if the model is not static. To run the model in eager mode, set 'enforce_eager=True' or use '--enforce-eager' in the CLI.
+INFO 07-26 12:34:33 model_runner.py:1406] CUDA graphs can take additional 1~3 GiB memory per GPU. If you are running out of memory, consider decreasing `gpu_memory_utilization` or enforcing eager mode. You can also reduce the `max_num_seqs` as needed to decrease memory usage.
+[1;36m(VllmWorkerProcess pid=1773141)[0;0m INFO 07-26 12:34:57 custom_all_reduce.py:233] Registering 2555 cuda graph addresses
+INFO 07-26 12:34:57 custom_all_reduce.py:233] Registering 2555 cuda graph addresses
+INFO 07-26 12:34:57 model_runner.py:1530] Graph capturing finished in 23 secs.
+[1;36m(VllmWorkerProcess pid=1773141)[0;0m INFO 07-26 12:34:57 model_runner.py:1530] Graph capturing finished in 23 secs.
+/mnt/data1/zar/search-1/Search-R1/scripts/eval/eval_litecoa_sft_vllm.py:265: DeprecationWarning: The 'lora_local_path' attribute is deprecated and will be removed in a future version. Please use 'lora_path' instead.
+  lora_request = LoRARequest("litecoa_sft", 1, args.adapter)
+[eval] batch 1-32/883
+[eval] progress done=32 errors=0 answer=31 em=17/32 format=0
+[eval] batch 33-64/883
+[eval] progress done=64 errors=0 answer=61 em=26/64 format=0
+[eval] batch 65-96/883
+[eval] progress done=96 errors=0 answer=93 em=40/96 format=0
+[eval] batch 97-128/883
+[eval] progress done=128 errors=0 answer=125 em=59/128 format=0
+[eval] batch 129-160/883
+[eval] progress done=160 errors=0 answer=157 em=77/160 format=0
+[eval] batch 161-192/883
+[eval] progress done=192 errors=0 answer=188 em=87/191 format=0
+[eval] batch 193-224/883
+[eval] progress done=224 errors=0 answer=219 em=99/222 format=0
+[eval] batch 225-256/883
+[eval] progress done=256 errors=0 answer=250 em=117/254 format=0
+[eval] batch 257-288/883
+[eval] progress done=288 errors=0 answer=282 em=129/285 format=0
+[eval] batch 289-320/883
+[eval] progress done=320 errors=0 answer=313 em=144/317 format=0
+[eval] batch 321-352/883
+[eval] progress done=352 errors=0 answer=345 em=156/348 format=0
+[eval] batch 353-384/883
+[eval] progress done=384 errors=0 answer=375 em=170/380 format=0
+[eval] batch 385-416/883
+[eval] progress done=416 errors=0 answer=405 em=187/412 format=0
+[eval] batch 417-448/883
+[eval] progress done=448 errors=0 answer=434 em=203/443 format=0
+[eval] batch 449-480/883
+[eval] progress done=480 errors=0 answer=466 em=215/472 format=0
+[eval] batch 481-512/883
+[eval] progress done=512 errors=0 answer=498 em=232/504 format=0
+[eval] batch 513-544/883
+[eval] progress done=544 errors=0 answer=529 em=246/535 format=0
+[eval] batch 545-576/883
+[eval] progress done=576 errors=0 answer=561 em=265/567 format=0
+[eval] batch 577-608/883
+[eval] progress done=608 errors=0 answer=593 em=281/598 format=0
+[eval] batch 609-640/883
+[eval] progress done=640 errors=0 answer=624 em=289/630 format=0
+[eval] batch 641-672/883
+[eval] progress done=672 errors=0 answer=655 em=308/662 format=0
+[eval] batch 673-704/883
+[eval] progress done=704 errors=0 answer=687 em=320/694 format=0
+[eval] batch 705-736/883
+[eval] progress done=736 errors=0 answer=717 em=332/725 format=0
+[eval] batch 737-768/883
+[eval] progress done=768 errors=0 answer=748 em=342/756 format=0
+[eval] batch 769-800/883
+[eval] progress done=800 errors=0 answer=778 em=355/788 format=0
+[eval] batch 801-832/883
+[eval] progress done=832 errors=0 answer=808 em=367/820 format=0
+[eval] batch 833-864/883
+[eval] progress done=864 errors=0 answer=839 em=383/852 format=0
+[eval] batch 865-883/883
+[eval] progress done=883 errors=0 answer=856 em=392/871 format=0
+{
+  "total": 883,
+  "errors": 0,
+  "format_valid": 0,
+  "has_plan": 0,
+  "plan_once": 0,
+  "answer_count": 856,
+  "generated_information_count": 0,
+  "parser_warning_count": 4,
+  "agent_warning_count": 27,
+  "max_turns_exceeded": 26,
+  "search_turn_distribution": {
+    "1": 838,
+    "2": 15,
+    "3": 30
+  },
+  "query_count_distribution": {
+    "2": 813,
+    "3": 26,
+    "4": 16,
+    "5": 5,
+    "6": 21,
+    "7": 1,
+    "9": 1
+  },
+  "answer_em": 392,
+  "answer_raw_em": 105,
+  "answer_numeric_em": 392,
+  "answer_subem": 298,
+  "gold_count": 871
+}
+INFO 07-26 12:39:30 multiproc_worker_utils.py:134] Terminating local vLLM worker processes
+[1;36m(VllmWorkerProcess pid=1773141)[0;0m INFO 07-26 12:39:30 multiproc_worker_utils.py:242] Worker exiting
+[rank0]:[W726 12:39:32.362601281 CudaIPCTypes.cpp:16] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors]
+/home/zar/miniconda3/envs/searchr1/lib/python3.9/multiprocessing/resource_tracker.py:216: UserWarning: resource_tracker: There appear to be 1 leaked shared_memory objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '
