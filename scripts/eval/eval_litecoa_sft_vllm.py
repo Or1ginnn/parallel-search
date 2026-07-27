@@ -28,9 +28,11 @@ If the evidence is sufficient, provide the answer inside <answer> and </answer>,
 Question: {question}
 """
 
-FINANCIAL_REASONING_HINT = """\
-For financial calculation questions, search for each required quantity with complementary queries (for example, numerator and denominator). Reason from the retrieved values inside <think>; never guess a missing value.
-"""
+FINANCIAL_REASONING_HINT = (
+    "For financial calculation questions, search for each required quantity with complementary "
+    "queries (for example, numerator and denominator). Use the retrieved evidence to reason "
+    "through any arithmetic inside <think>; never guess a missing value. "
+)
 
 SEARCH_RE = re.compile(r"<search>(.*?)</search>", re.DOTALL)
 ANSWER_RE = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
@@ -133,7 +135,16 @@ def retrieve(args, queries, report_ids=None):
     return response.json()["result"]
 
 
-def format_information(queries, results):
+def truncate_to_token_limit(tokenizer, text, max_tokens):
+    if max_tokens is None or max_tokens <= 0:
+        return text
+    token_ids = tokenizer.encode(text, add_special_tokens=False)
+    if len(token_ids) <= max_tokens:
+        return text
+    return tokenizer.decode(token_ids[:max_tokens], skip_special_tokens=False)
+
+
+def format_information(tokenizer, queries, results, max_tokens):
     information = "<information>"
     for query, retrieval_result in zip(queries, results):
         information += f"\n[Query] {query}\n"
@@ -143,7 +154,7 @@ def format_information(queries, results):
             body = "\n".join(content.split("\n")[1:])
             information += f"Doc {idx + 1}(Title: {title}) {body}\n"
     information += "</information>"
-    return information
+    return truncate_to_token_limit(tokenizer, information, max_tokens)
 
 
 def load_samples(args):
@@ -405,7 +416,12 @@ def run_batch(args, tokenizer, llm, lora_request, samples):
 
             for state, output_text, queries, start in pending:
                 results = flat_results[start : start + len(queries)]
-                information = format_information(queries, results)
+                information = format_information(
+                    tokenizer,
+                    queries,
+                    results,
+                    args.max_information_tokens,
+                )
                 state["queries_by_turn"].append(queries)
                 state["trajectory_parts"].append(information)
                 state["prompt"] += f"\n\n{output_text}{information}\n\n"
@@ -488,6 +504,7 @@ def main():
     parser.add_argument("--max_turns", type=int, default=3)
     parser.add_argument("--max_queries_per_turn", type=int, default=3)
     parser.add_argument("--max_new_tokens", type=int, default=1024)
+    parser.add_argument("--max_information_tokens", type=int, default=None)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top_p", type=float, default=1.0)
     parser.add_argument("--do_sample", action="store_true")
@@ -509,6 +526,11 @@ def main():
     log(f"[config] num_samples={args.num_samples}")
     log(f"[config] batch_size={args.batch_size}")
     log(f"[config] max_turns={args.max_turns}")
+    log(f"[config] max_new_tokens={args.max_new_tokens}")
+    log(f"[config] max_information_tokens={args.max_information_tokens}")
+    log(f"[config] topk={args.topk}")
+    log(f"[config] use_report_scope={args.use_report_scope}")
+    log(f"[config] financial_reasoning_hint={args.financial_reasoning_hint}")
     log(f"[config] do_sample={args.do_sample}")
     log(f"[config] temperature={args.temperature if args.do_sample else 0.0}")
     log(f"[config] tensor_parallel_size={args.tensor_parallel_size}")
