@@ -1,0 +1,216 @@
+{
+  "data": {
+    "seed": 42,
+    "tokenizer": null,
+    "val_files": "/mnt/data1/zar/finance/data/finance_finqa/grpo_nocalc/dev.parquet",
+    "prompt_key": "prompt",
+    "train_files": "/mnt/data1/zar/finance/data/finance_finqa/grpo_nocalc/train.parquet",
+    "val_data_num": 320,
+    "max_obs_length": 1500,
+    "train_data_num": null,
+    "val_batch_size": 16,
+    "return_raw_chat": false,
+    "max_start_length": 2048,
+    "train_batch_size": 32,
+    "max_prompt_length": 8192,
+    "max_response_length": 512,
+    "return_raw_input_ids": false,
+    "shuffle_train_dataloader": true
+  },
+  "critic": {
+    "model": {
+      "path": "~/models/deepseek-llm-7b-chat",
+      "fsdp_config": {
+        "fsdp_size": -1,
+        "wrap_policy": {
+          "min_num_params": 0
+        },
+        "grad_offload": false,
+        "param_offload": false,
+        "optimizer_offload": false
+      },
+      "external_lib": null,
+      "tokenizer_path": "/mnt/data1/zar/finance/models/finqa_litecoa_sft_merged_fp32_v3",
+      "use_remove_padding": false,
+      "enable_gradient_checkpointing": false
+    },
+    "optim": {
+      "lr": 1e-05,
+      "min_lr_ratio": null,
+      "warmup_style": "constant",
+      "total_training_steps": 200,
+      "lr_warmup_steps_ratio": 0
+    },
+    "shuffle": false,
+    "strategy": "fsdp",
+    "grad_clip": 1,
+    "ppo_epochs": 1,
+    "cliprange_value": 0.5,
+    "use_dynamic_bsz": false,
+    "ppo_mini_batch_size": 32,
+    "ppo_micro_batch_size": 64,
+    "forward_micro_batch_size": 64,
+    "ppo_max_token_len_per_gpu": 32768,
+    "forward_max_token_len_per_gpu": 32768,
+    "ulysses_sequence_parallel_size": 1
+  },
+  "trainer": {
+    "logger": [
+      "wandb"
+    ],
+    "nnodes": 1,
+    "val_only": false,
+    "save_freq": 25,
+    "test_freq": 25,
+    "project_name": "Finance_Agent",
+    "total_epochs": 10,
+    "critic_warmup": 0,
+    "experiment_name": "finqa-phase4-grpo-v3-stable",
+    "n_gpus_per_node": 2,
+    "default_hdfs_dir": null,
+    "val_before_train": false,
+    "default_local_dir": "verl_checkpoints/finqa-phase4-grpo-v3-stable",
+    "train_num_examine": 1,
+    "trajectory_log_dir": "/mnt/data1/zar/finance/trajectory/finqa_phase4_stable",
+    "log_best_trajectory": true,
+    "total_training_steps": 200,
+    "resume_from_checkpoint": "/mnt/data1/zar/search-1/Search-R1/verl_checkpoints/finqa-phase4-grpo-v3-short-resumable/actor/global_step_50"
+  },
+  "algorithm": {
+    "lam": 1,
+    "gamma": 1,
+    "kl_ctrl": {
+      "type": "fixed",
+      "kl_coef": 0.001
+    },
+    "kl_penalty": "kl",
+    "no_think_rl": false,
+    "adv_estimator": "grpo",
+    "state_masking": {
+      "end_state_marker": "</information>",
+      "start_state_marker": "<information>"
+    }
+  },
+  "do_search": true,
+  "max_turns": 3,
+  "retriever": {
+    "url": "http://127.0.0.1:8000/retrieve",
+    "topk": 3,
+    "use_report_scope": true,
+    "max_queries_per_turn": 3
+  },
+  "ray_kwargs": {
+    "ray_init": {
+      "_temp_dir": "/mnt/data1/zar/finance/rp4t",
+      "object_spilling_directory": "/mnt/data1/zar/finance/ray_spill/finqa_phase4_stable"
+    }
+  },
+  "reward_model": {
+    "model": {
+      "path": "~/models/FsfairX-LLaMA3-RM-v0.1",
+      "fsdp_config": {
+        "param_offload": false,
+        "min_num_params": 0
+      },
+      "external_lib": null,
+      "input_tokenizer": "/mnt/data1/zar/finance/models/finqa_litecoa_sft_merged_fp32_v3",
+      "use_remove_padding": false
+    },
+    "enable": false,
+    "strategy": "fsdp",
+    "max_length": null,
+    "litecoa_reward": true,
+    "retrieval_score": 0,
+    "use_dynamic_bsz": false,
+    "micro_batch_size": 64,
+    "final_format_score": 0,
+    "structure_format_score": 0,
+    "litecoa_evidence_hit_bonus": 0.05,
+    "litecoa_valid_search_bonus": 0.05,
+    "litecoa_answer_present_bonus": 0.05,
+    "forward_max_token_len_per_gpu": 32768,
+    "ulysses_sequence_parallel_size": 1,
+    "litecoa_parallel_evidence_bonus": 0.05,
+    "litecoa_no_generated_information_bonus": 0.05
+  },
+  "actor_rollout_ref": {
+    "ref": {
+      "fsdp_config": {
+        "fsdp_size": -1,
+        "wrap_policy": {
+          "min_num_params": 0
+        },
+        "param_offload": false
+      },
+      "log_prob_use_dynamic_bsz": false,
+      "log_prob_micro_batch_size": 32,
+      "log_prob_max_token_len_per_gpu": 16384,
+      "ulysses_sequence_parallel_size": 1
+    },
+    "actor": {
+      "optim": {
+        "lr": 5e-07,
+        "min_lr_ratio": null,
+        "warmup_style": "constant",
+        "total_training_steps": 200,
+        "lr_warmup_steps_ratio": 0.285
+      },
+      "shuffle": false,
+      "strategy": "fsdp",
+      "grad_clip": 1,
+      "clip_ratio": 0.2,
+      "max_ppo_kl": 0.1,
+      "ppo_epochs": 1,
+      "fsdp_config": {
+        "fsdp_size": -1,
+        "wrap_policy": {
+          "min_num_params": 0
+        },
+        "grad_offload": false,
+        "param_offload": true,
+        "optimizer_offload": true
+      },
+      "use_kl_loss": true,
+      "kl_loss_coef": 0.005,
+      "kl_loss_type": "low_var_kl",
+      "entropy_coeff": 0.001,
+      "state_masking": true,
+      "use_dynamic_bsz": false,
+      "ppo_mini_batch_size": 32,
+      "ppo_micro_batch_size": 16,
+      "ppo_max_token_len_per_gpu": 16384,
+      "ulysses_sequence_parallel_size": 1
+    },
+    "model": {
+      "path": "/mnt/data1/zar/finance/models/finqa_litecoa_sft_merged_fp32_v3",
+      "resume_path": "/mnt/data1/zar/search-1/Search-R1/verl_checkpoints/finqa-phase4-grpo-v3-short-resumable/actor/global_step_50",
+      "external_lib": null,
+      "use_remove_padding": true,
+      "enable_gradient_checkpointing": true
+    },
+    "rollout": {
+      "n": 1,
+      "name": "vllm",
+      "dtype": "bfloat16",
+      "top_k": -1,
+      "top_p": 0.95,
+      "n_agent": 5,
+      "do_sample": true,
+      "ignore_eos": false,
+      "load_format": "dummy_dtensor",
+      "temperature": 1,
+      "max_num_seqs": 1024,
+      "enforce_eager": true,
+      "prompt_length": 8192,
+      "response_length": 512,
+      "free_cache_engine": true,
+      "gpu_memory_utilization": 0.1,
+      "max_num_batched_tokens": 8192,
+      "log_prob_use_dynamic_bsz": false,
+      "log_prob_micro_batch_size": 32,
+      "tensor_model_parallel_size": 1,
+      "log_prob_max_token_len_per_gpu": 16384
+    },
+    "hybrid_engine": true
+  }
+}

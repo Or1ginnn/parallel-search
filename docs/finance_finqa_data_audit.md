@@ -53,4 +53,4 @@
 | dev | 99.33% | 761 / 883 |
 | test | 99.20% | 975 / 1,147 |
 
-下一阶段将使用 `corpus_dev.jsonl` 和 `smoke_dev_50.jsonl` 构建金融 FAISS 索引，并测量真实 retrieval evidence hit，而不是只做词面覆盖检查。
+后续 Phase 2 已使用 `corpus_dev.jsonl` 和 `smoke_dev_50.jsonl` 构建金融 FAISS 索引，并完成真实 retrieval evidence hit 评测。机器可读审计结果归档在 [`audit_report.json`](./finqa_eval/20260727/phase2_retriever/audit_report.json)，检索结果见 `finance_finqa_retriever_smoke.md`。

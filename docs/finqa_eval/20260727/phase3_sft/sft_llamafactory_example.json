@@ -1,0 +1,43 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "You are a search-augmented reasoning agent. You can only use the following tags: <think>, <plan>, <search>, <information>, <answer>. You must conduct reasoning inside <think> and </think> before every plan, search, or answer. Use <plan> to decompose the question into searchable sub-questions. If you lack knowledge, call a search engine by <search> query </search>. You can put multiple independent queries in one search action with \"||\", for example <search> query1 || query2 </search>. Each search action can contain at most 3 queries. The search engine will return results between <information> and </information>. Do not generate <information> yourself. If the evidence is sufficient, provide the answer inside <answer> and </answer>, without detailed illustrations. Question: what is the percentage change in common stock held by defined contribution plans from 2011 to 2012?\n"
+    },
+    {
+      "role": "assistant",
+      "content": "<think>To compute the percentage change, we need the amount of common stock held by defined contribution plans in 2011 and the amount in 2012.</think>\n<search>common stock held by defined contribution plans 2011 || common stock held by defined contribution plans 2012</search>"
+    },
+    {
+      "role": "user",
+      "content": "<information>\n[Query] common stock held by defined contribution plans 2011\nDoc 1(Title: FinQA | LMT/2012/page_87.pdf | text 5) our contributions were $ 380 million in 2012 , $ 378 million in 2011 , and $ 379 million in 2010 , the majority of which were funded in our common stock . our defined contribution plans held approximately 48.6 million and 52.1 million shares of our common stock as of december 31 , 2012 and 2011. .\nDoc 2(Title: FinQA | LMT/2012/page_87.pdf | text 4) in 2012 , we made contributions of $ 235 million related to our retiree medical and life insurance plans . we expect no required contributions related to the retiree medical and life insurance plans in 2013 . the following table presents estimated future benefit payments , which reflect expected future employee service , as of december 31 , 2012 ( in millions ) : . defined contribution plans we maintain a number of defined contribution plans , most with 401 ( k ) features , that cover substantially all of our employees . under the provisions of our 401 ( k ) plans , we match most employees 2019 eligible contributions at rates specified in the plan documents .\nDoc 3(Title: FinQA | LMT/2012/page_87.pdf | table 1) : qualified defined benefit pension plans | 2013: $ 1900 | 2014: $ 1970 | 2015: $ 2050 | 2016: $ 2130 | 2017: $ 2220 | 2018 - 2022: $ 12880\n\n[Query] common stock held by defined contribution plans 2012\nDoc 1(Title: FinQA | LMT/2012/page_87.pdf | text 5) our contributions were $ 380 million in 2012 , $ 378 million in 2011 , and $ 379 million in 2010 , the majority of which were funded in our common stock . our defined contribution plans held approximately 48.6 million and 52.1 million shares of our common stock as of december 31 , 2012 and 2011. .\nDoc 2(Title: FinQA | LMT/2012/page_87.pdf | text 4) in 2012 , we made contributions of $ 235 million related to our retiree medical and life insurance plans . we expect no required contributions related to the retiree medical and life insurance plans in 2013 . the following table presents estimated future benefit payments , which reflect expected future employee service , as of december 31 , 2012 ( in millions ) : . defined contribution plans we maintain a number of defined contribution plans , most with 401 ( k ) features , that cover substantially all of our employees . under the provisions of our 401 ( k ) plans , we match most employees 2019 eligible contributions at rates specified in the plan documents .\nDoc 3(Title: FinQA | LMT/2012/page_87.pdf | text 3) commodities categorized as level 1 are traded on an active commodity exchange and are valued at their closing prices on the last trading day of the year . commodities categorized as level 2 represent shares in a commingled commodity fund valued using the nav , which is corroborated by observable market data . contributions and expected benefit payments we generally determine funding requirements for our defined benefit pension plans in a manner consistent with cas and internal revenue code rules . in 2012 , we made contributions of $ 3.6 billion related to our qualified defined benefit pension plans . we plan to make contributions of approximately $ 1.5 billion related to the qualified defined benefit pension plans in 2013 .\n</information>"
+    },
+    {
+      "role": "assistant",
+      "content": "<think>The retrieved information provides: 2012 common stock held = 48.6 million shares, 2011 = 52.1 million shares. Percentage change = ((48.6 - 52.1) / 52.1) * 100 = (-3.5 / 52.1) * 100 ≈ -6.7%.</think>\n<answer>-6.7%</answer>"
+    }
+  ],
+  "id": "LMT/2012/page_87.pdf-2",
+  "source": "nq",
+  "question": "what is the percentage change in common stock held by defined contribution plans from 2011 to 2012?",
+  "gold_answer": [
+    "-6.7%"
+  ],
+  "queries_by_turn": [
+    [
+      "common stock held by defined contribution plans 2011",
+      "common stock held by defined contribution plans 2012"
+    ]
+  ],
+  "quality_flags": {
+    "format_valid": true,
+    "answer_em": true,
+    "answer_subem": true,
+    "answer_match": true,
+    "evidence_hit": true,
+    "num_search_turns": 1,
+    "num_queries": 2,
+    "multi_turn": false,
+    "warnings": []
+  }
+}

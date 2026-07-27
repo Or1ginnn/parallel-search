@@ -30,10 +30,12 @@
 
 - 处理官方 FinQA train/dev/test：6,251 / 883 / 1,147 个问题。
 - 从财报 `pre_text`、`post_text` 和 table 构建 30,440 个检索 chunks。
-- 检索语料排除 answer、program 与 gold evidence，防止标签泄漏。
+- 检索语料排除 answer、program 和 gold-evidence 标注字段，防止标签泄漏；
+  证据对应的原始年报文本与表格仍正常保留。
 - 保留 page-level `report_id`、gold answer、program 与 evidence 供训练和评测使用。
 
-验收：三组报告无交集，gold evidence corpus 表达覆盖率均超过 99%。
+验收：三组报告无交集，平均 gold-evidence token 覆盖率均超过 99%；完整覆盖
+样本比例约为 85%-87%，两类指标不混用。
 
 ## Phase 2：金融 Retriever 与零样本基线
 
@@ -65,7 +67,9 @@
 
 - 从已验证等价的 SFT merged v3 模型开始训练。
 - 使用 veRL + GRPO 与并行 vLLM rollout。
-- 保留答案 reward、搜索与证据 shaping、hard-zero 约束和 KL 稳定项。
+- 保留答案 reward、通用搜索行为 shaping、hard-zero 约束和 KL 稳定项。当前
+  `evidence_hit` 只检查最终答案字符串是否出现在 information 中，不等价于
+  gold-evidence 路径奖励。
 - 增加 checkpoint 恢复、best trajectory、W&B 训练正确率与流式 validation 汇总。
 
 验收：step200 FinQA dev greedy Numeric EM 达到 54.88%，格式有效率和 answer coverage 均为 100%，无 parser/agent warning。详见 `finance_phase4_grpo_report.md`。
@@ -79,5 +83,7 @@
 - 与单 query、原始并行模型、金融 SFT 和金融 GRPO 做统一对比。
 - 输出营收计算、比例变化、财务指标同比等典型案例。
 - 固化可复现命令、模型版本、数据版本和报告范围检索约束。
+- 在 FinQA test 上进行一次性最终评测，并补充 merged v3 严格 A/B 与单 query
+  对照。
 
 验收：形成完整误差报告、对照实验表和可展示的金融投研问答案例。

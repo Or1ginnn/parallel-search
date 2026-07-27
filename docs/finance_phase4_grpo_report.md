@@ -65,6 +65,17 @@ R_raw = 1.00 * answer_numeric_em
 
 最高原始奖励为 1.25。Numeric EM 使用 FinQA 数值等价判定，可处理百分比、小数、货币与 program executable answer 的语义等价。
 
+这里的 `evidence_hit` 必须按当前代码的真实语义理解：它把全部 retriever
+注入的 `<information>` 合并后，检查最终 gold answer 的规范化字符串是否直接
+出现。它不是 gold evidence 句级召回，也不执行 gold program。对于答案需要
+由多个财报数值计算得到的样本，最终答案通常不会原样出现在年报中，因此该项
+经常为 0。
+
+`parallel_evidence_hit` 的真实条件是“第一次 search 至少有两个去重 query，且
+上述合并后的 information 命中最终 gold answer”。它不要求两个 query 分别命中
+不同 gold evidence。因而本阶段应称为小幅行为 shaping，而不能表述为已经实现
+严格的路径感知或 gold-evidence reward。
+
 以下任意条件成立时执行 hard zero，将整条轨迹奖励置为 0：
 
 - response 达到长度上限；
@@ -96,6 +107,35 @@ R_raw = 1.00 * answer_numeric_em
 | Maximum PPO KL | 0.1 |
 | Validation / save frequency | 25 / 25 steps |
 | W&B runtime | 26,147 秒，约 7 小时 16 分钟 |
+
+### 4.1 可复现训练入口
+
+正式入口已固化为：
+
+```text
+scripts/train/train_finqa_grpo_full.sh
+```
+
+脚本默认值与 W&B `q51bp5pw` 保持一致，包括 merged v3、no-calculator 数据、
+2 卡、batch 32、每题 5 条、temperature 1.0、Top-3、information 1500、
+KL 0.005、每 25 step 验证和保存，以及 Step50 完整断点恢复。
+
+```bash
+# 精确延续历史 Step50 -> Step200
+bash scripts/train/train_finqa_grpo_full.sh
+
+# 从 merged v3 重新开始独立 200-step 实验
+RESUME_FROM_CHECKPOINT=null \
+EXPERIMENT_NAME=finqa-phase4-grpo-v3-fresh \
+bash scripts/train/train_finqa_grpo_full.sh
+```
+
+W&B 的完整嵌套配置已归档为
+[`wandb_q51bp5pw_config.json`](./finqa_eval/20260727/phase4_training/wandb_q51bp5pw_config.json)。
+运行环境元数据显示 Python 3.9.25、CUDA 13.0、A800 80GB；本次实际使用其中
+2 张卡。W&B 自动记录的 Git remote/commit 指向服务器上游仓库，不能反映手工
+同步的 Finance 改动，因此可复现代码以 `finance-agent` 分支及本报告列出的脚本
+为准。
 
 ## 5. 训练曲线
 
@@ -176,6 +216,9 @@ R_raw = 1.00 * answer_numeric_em
 
 45.01% 来自动态 LoRA 的完整评测，是当前最强的 pre-GRPO reference。FP32 merged v3 已通过 logits 和 100 条 BF16 A/B 等价验证，但没有单独进行 883 条 pre-GRPO 全量评测，因此这里不把 45.01% 表述为完全相同加载形态下的严格 checkpoint A/B。
 
+这也是当前结果的主要对照限制：`+9.87` 个百分点是“最强可用 pre-GRPO
+reference”对比，不是相同 merged v3 加载形态的严格 883 条 before/after A/B。
+
 ### 6.2 并行搜索行为
 
 Step200 的 883 条轨迹全部只进行 1 次 search：
@@ -197,11 +240,23 @@ Step200 的 883 条轨迹全部只进行 1 次 search：
 
 Step200 固化为当前金融并行检索模型的最佳 checkpoint。下一阶段应优先分析 393 条 Numeric EM 错误样本，区分检索未命中、字段选择错误、计算口径错误和答案单位错误，再决定是否继续 GRPO 或加入受控计算工具。
 
+尚未完成、不得写成既有结果的实验包括：
+
+1. repaired merged v3 的 883 条严格 pre-GRPO 全量评测；
+2. 同模型、同检索预算下的单 query 对照；
+3. FinQA test 1,147 条一次性最终评测；
+4. 393 条错误样本的 retrieval / field / calculation / unit 分层归因；
+5. 多随机种子重复实验与方差。
+
 ## 8. 可复现材料
+
+从数据、索引、SFT、GRPO 到 dev/test 评测的完整命令见
+[`finance_reproduction.md`](./finance_reproduction.md)。
 
 - 训练曲线原始导出：[`wandb_q51bp5pw_raw_history.json`](./finqa_eval/20260727/phase4_training/wandb_q51bp5pw_raw_history.json)
 - 对齐后的逐步数据：[`wandb_q51bp5pw_history.csv`](./finqa_eval/20260727/phase4_training/wandb_q51bp5pw_history.csv)
 - W&B 元数据：[`wandb_q51bp5pw_metadata.json`](./finqa_eval/20260727/phase4_training/wandb_q51bp5pw_metadata.json)
+- W&B 完整配置：[`wandb_q51bp5pw_config.json`](./finqa_eval/20260727/phase4_training/wandb_q51bp5pw_config.json)
 - Step200 summary：[`summary.json`](./finqa_eval/20260727/full_dev/phase4_step200_nocalc_topk3_info1500/summary.json)
 - Step200 完整轨迹：[`trajectories.jsonl`](./finqa_eval/20260727/full_dev/phase4_step200_nocalc_topk3_info1500/trajectories.jsonl)
 - Step200 评测日志：[`eval.log`](./finqa_eval/20260727/full_dev/phase4_step200_nocalc_topk3_info1500/eval.log)

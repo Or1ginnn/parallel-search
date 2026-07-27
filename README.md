@@ -82,6 +82,30 @@ parallel search -> information -> answer
 因此当前阶段更准确的定位是：**Parallel-Search-R1 / compact LiteCoA agent**。
 如果后续要强制保留 `<plan>`，需要更强模型或单独的格式约束实验。
 
+## Finance / FinQA 迁移
+
+在通用并行检索模型基础上，项目进一步完成了金融年报数值问答迁移：
+
+```text
+FinQA 年报文本与表格
+-> report-aware E5 + FAISS retriever
+-> teacher + real retriever 构造 500 条金融轨迹
+-> LLaMA-Factory LoRA SFT
+-> veRL GRPO 稳定对齐
+```
+
+FinQA dev（871 条可评分答案）的主要结果：
+
+| 模型 | Numeric EM | 交互状态 |
+| --- | ---: | --- |
+| 原始 Step900 策略 | 11.83% | 双 query 稳定，金融能力不足 |
+| FinQA LoRA SFT | 45.01% | 金融能力显著提升，仍有超轮次 |
+| FinQA GRPO Step200 | **54.88%** | 883/883 有答案，0 warning，0 超轮次 |
+
+这些数字均为 dev 结果；FinQA test、单 query 对照与严格 merged v3
+pre-GRPO A/B 尚未完成，不将其包装为 test-set SOTA。完整报告与可复现材料见
+[`docs/README.md`](docs/README.md)。
+
 ## Status
 
 This repository is not an official Search-R1 repository and is not presented as
@@ -191,7 +215,10 @@ near the top of the shell file.
   upstream code for compatibility.
 - Model and dataset files must be downloaded or generated locally; they are not
   included in this repository.
-- Internal experiment notes and run reports are kept locally and are not
-  published in this repository.
+- Reproducible experiment reports and selected public-benchmark artifacts are
+  indexed under `docs/`. Model weights, checkpoints, full training datasets,
+  retrieval indexes, caches, and credentials remain excluded.
+- The Finance / FinQA reproduction commands and final evaluation protocol are
+  documented in `docs/finance_reproduction.md`.
 - Original upstream documentation can be consulted at
   https://github.com/PeterGriffinJin/Search-R1.

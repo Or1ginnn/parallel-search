@@ -192,7 +192,10 @@ def main() -> None:
     audit["chunking"] = {
         "max_text_lines": args.max_text_lines,
         "max_chars": args.max_chars,
-        "corpus_policy": "Uses report text and table only; excludes QA answers, programs, and gold evidence.",
+        "corpus_policy": (
+            "Uses report text and tables only; excludes QA answer, program, and "
+            "gold-evidence annotation fields while retaining their source report content."
+        ),
     }
 
     smoke_pool = [qa_record(row, args.smoke_split) for row in split_rows[args.smoke_split]]

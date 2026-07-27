@@ -55,12 +55,19 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_dir", default="data/finance_finqa/processed")
     parser.add_argument("--output_dir", default="data/finance_finqa/grpo")
+    parser.add_argument(
+        "--splits",
+        nargs="+",
+        choices=("train", "dev", "test"),
+        default=("train", "dev"),
+        help="Processed FinQA splits to convert. Defaults preserve the training workflow.",
+    )
     args = parser.parse_args()
 
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    for split in ("train", "dev"):
+    for split in args.splits:
         records = load_jsonl(input_dir / f"{split}.jsonl")
         rows = [convert_row(record, index) for index, record in enumerate(records)]
         pd.DataFrame(rows).to_parquet(output_dir / f"{split}.parquet", index=False)

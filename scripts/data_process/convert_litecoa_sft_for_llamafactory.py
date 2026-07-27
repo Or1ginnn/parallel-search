@@ -17,6 +17,20 @@ If the evidence is sufficient, provide the answer inside <answer> and </answer>,
 Question: {question}
 """
 
+FINANCE_NO_PLAN_PROMPT = """You are a search-augmented reasoning agent. \
+You can only use the following tags: <think>, <search>, <information>, <answer>. \
+You must conduct reasoning inside <think> and </think> before every search or answer. \
+If you lack knowledge, call a search engine by <search> query </search>. \
+You can put multiple independent queries in one search action with "||", for example <search> query1 || query2 </search>. \
+Each search action can contain at most {max_queries_per_turn} queries. \
+The search engine will return results between <information> and </information>. \
+Do not generate <information> yourself. \
+If the evidence is sufficient, provide the answer inside <answer> and </answer>, without detailed illustrations. \
+For financial calculation questions, search for each required quantity with complementary queries. \
+Use the retrieved evidence to reason through arithmetic inside <think>; never guess a missing value. \
+Question: {question}
+"""
+
 TAG_RE = re.compile(r"<(think|plan|search|information|answer)>.*?</\1>", re.DOTALL)
 
 
@@ -81,7 +95,7 @@ def split_trajectory(assistant_content):
     return messages
 
 
-def convert_messages(record, max_queries_per_turn):
+def convert_messages(record, max_queries_per_turn, prompt_style):
     messages = record["messages"]
     if len(messages) != 3:
         raise ValueError(f"expected 3 messages, got {len(messages)}")
@@ -95,7 +109,12 @@ def convert_messages(record, max_queries_per_turn):
         raise ValueError("third message must be assistant")
 
     question = extract_question(record, user_msg)
-    user_content = INFER_LITECOA_PROMPT.format(
+    prompt_template = (
+        FINANCE_NO_PLAN_PROMPT
+        if prompt_style == "finance_no_plan"
+        else INFER_LITECOA_PROMPT
+    )
+    user_content = prompt_template.format(
         max_queries_per_turn=max_queries_per_turn,
         question=question,
     )
@@ -104,8 +123,10 @@ def convert_messages(record, max_queries_per_turn):
     )
 
 
-def convert_record(record, keep_metadata, max_queries_per_turn):
-    converted = {"messages": convert_messages(record, max_queries_per_turn)}
+def convert_record(record, keep_metadata, max_queries_per_turn, prompt_style):
+    converted = {
+        "messages": convert_messages(record, max_queries_per_turn, prompt_style)
+    }
     if keep_metadata:
         for key, value in record.items():
             if key != "messages":
@@ -125,6 +146,11 @@ def main():
     )
     parser.add_argument("--keep_metadata", action="store_true")
     parser.add_argument("--max_queries_per_turn", type=int, default=3)
+    parser.add_argument(
+        "--prompt_style",
+        choices=("litecoa_plan", "finance_no_plan"),
+        default="litecoa_plan",
+    )
     args = parser.parse_args()
 
     input_path = Path(args.input)
@@ -144,6 +170,7 @@ def main():
                     record,
                     keep_metadata=args.keep_metadata,
                     max_queries_per_turn=args.max_queries_per_turn,
+                    prompt_style=args.prompt_style,
                 )
             except Exception as exc:
                 raise ValueError(f"failed to convert line {line_no}: {exc}") from exc

@@ -1,0 +1,12 @@
+{
+  "total": 50,
+  "errors": 0,
+  "topk": 3,
+  "evidence_threshold": 0.8,
+  "any_evidence_hit": 27,
+  "any_evidence_hit_rate": 0.54,
+  "all_evidence_hit": 10,
+  "all_evidence_hit_rate": 0.2,
+  "evidence_recall": 0.35789473684210527,
+  "output": "outputs/finance_finqa/retrieval_smoke_dev_50.jsonl"
+}

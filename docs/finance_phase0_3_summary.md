@@ -304,13 +304,32 @@ assistant: 完整 think/search/information/think/answer 轨迹
 - `<information>` 作为环境侧 user observation，不计入 assistant 训练 loss；
 - 模型学习的是“看到真实 evidence 后继续回答”，而不是学习伪造 evidence。
 
+#### 历史 prompt 不一致
+
+本次 500 条数据的实际 LLaMA-Factory user prompt 仍沿用了通用 LiteCoA
+模板，其中包含 `Use <plan> to decompose...`；但 Finance teacher 的监督 target
+从未输出 `<plan>`。也就是说，训练输入要求 plan，而训练标签实际教模型直接
+`<think> -> <search>`。这解释了 SFT 评测中 `has_plan=0`，也说明该结果应被
+理解为 no-plan 金融并行搜索冷启动，而不是成功学习 plan-first 格式。
+
+真实的转换前后样本已归档：
+
+- [`sft_raw_example.json`](./finqa_eval/20260727/phase3_sft/sft_raw_example.json)
+- [`sft_llamafactory_example.json`](./finqa_eval/20260727/phase3_sft/sft_llamafactory_example.json)
+
+转换脚本现已新增 `--prompt_style finance_no_plan`。后续重新构造金融数据时应
+显式使用该模式，使 SFT、GRPO 和推理 prompt 一致；原 `litecoa_plan` 默认值
+继续服务旧 NQ 数据，避免改变历史实验。
+
 最终训练集：
 
 ```text
 data/finance_finqa/sft/finqa_litecoa_500/finqa_litecoa_sft_500.jsonl
 ```
 
-数据注册为 `sharegpt`，角色字段为 `role/content`。原始 metadata 中曾有历史默认 `source=nq`，但 LLaMA-Factory 只读取 `messages`，不影响训练；后续数据版本应统一修正为 `finqa`。
+数据注册为 `sharegpt`，角色字段为 `role/content`。本次历史数据的 metadata
+存在默认 `source=nq`，但 LLaMA-Factory 只读取 `messages`，不影响训练。
+`build_finqa_sft.py` 的默认值现已修正为 `source=finqa`，后续数据不再继承该错误。
 
 ---
 
@@ -351,6 +370,21 @@ data/finance_finqa/sft/finqa_litecoa_500/finqa_litecoa_sft_500.jsonl
 
 可训练参数为 119,734,272 / 3,205,672,960，约占 3.7351%。
 
+本次 SFT 环境版本已从训练服务器核对：
+
+| 组件 | 版本 |
+| --- | --- |
+| Python | 3.11.15 |
+| PyTorch | 2.11.0+cu130 |
+| Transformers | 5.6.0 |
+| PEFT | 0.18.1 |
+| Datasets | 4.0.0 |
+| Accelerate | 1.11.0 |
+| W&B | 0.28.0 |
+
+Transformers 5.6 与 GRPO 环境中的旧 Transformers 配置格式差异，正是后续
+RoPE 合并漂移需要单独修复的原因，因此版本信息属于模型产物的一部分。
+
 ### 6.3 Smoke 与正式训练
 
 训练前先用 8 条样本跑 4-step smoke：rank 32、alpha 64、1 epoch。smoke 用于验证数据读取、mask、反向传播、checkpoint 和 W&B 链路，不用于判断模型效果。
@@ -386,6 +420,32 @@ docs/finqa_eval/20260727/phase3_sft/
 
 用户提供的 W&B run `dqzvmyqm` 经核对属于此前通用 LiteCoA SFT：250 steps、约 510 秒、最终训练均值 loss 0.8226，不是本次 FinQA 500 条 SFT。它可作为框架运行参考，但本报告曲线使用 FinQA 本次训练的 `trainer_state.json`，避免混用实验。
 
+### 6.4 关键复现命令
+
+以下命令固定数据转换与 SFT 入口；路径可按服务器调整：
+
+```bash
+# FinQA 原始数据 -> QA JSONL 与无泄漏 corpus
+python scripts/data_process/prepare_finqa.py \
+  --raw_dir data/finance_finqa/raw/FinQA/dataset \
+  --output_dir data/finance_finqa/processed
+
+# teacher 原始轨迹 -> no-plan ShareGPT messages
+python scripts/data_process/convert_litecoa_sft_for_llamafactory.py \
+  --input data/finance_finqa/sft/finqa_sft_500_parallel/finqa_sft_500.jsonl \
+  --output data/finance_finqa/sft/finqa_litecoa_500/finqa_litecoa_sft_500.jsonl \
+  --keep_metadata \
+  --max_queries_per_turn 2 \
+  --prompt_style finance_no_plan
+
+# 两卡 LoRA SFT
+CUDA_VISIBLE_DEVICES=0,1 llamafactory-cli train \
+  configs/sft/finqa_litecoa_lora_qwen25_3b_full.yaml
+```
+
+注意：上面的 `finance_no_plan` 是修复后的规范命令；历史 500 条训练数据使用了
+plan prompt，因此复现历史 checkpoint 时应直接使用已归档数据，而不是重新转换。
+
 ---
 
 ## 7. Phase 3：全量评测与效果
@@ -398,6 +458,9 @@ docs/finqa_eval/20260727/phase3_sft/
 - 核心指标：FinQA Numeric EM；
 - `<information>` 仅由 retriever 返回；
 - 分别评测原始 step900、动态加载 FinQA LoRA，以及不同 Top-K/observation 长度。
+
+该阶段所有最终数字均来自反复用于在线决策的 dev split，不应表述为未见 test
+结果。FinQA test 的最终一次性评测仍属于待完成实验。
 
 ### 7.2 SFT 增益
 

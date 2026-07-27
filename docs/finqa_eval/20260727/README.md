@@ -32,6 +32,14 @@ under `phase4_training/`:
 - `wandb_q51bp5pw_raw_history.json`
 - `wandb_q51bp5pw_history.csv`
 - `wandb_q51bp5pw_metadata.json`
+- `wandb_q51bp5pw_config.json`
+
+## Phase 2-3 Records
+
+- `phase2_retriever/` contains the fixed 50-example retriever smoke input,
+  per-example retrieval output, audit statistics, and aggregate report.
+- `phase3_sft/` contains the teacher merge report, one raw trajectory, the exact
+  LLaMA-Factory message conversion, trainer state, and SFT curves.
 
 ## Merge Equivalence Checks
 

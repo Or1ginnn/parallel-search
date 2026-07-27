@@ -1,0 +1,41 @@
+{
+  "source": "data/finance_finqa/raw/FinQA/dataset",
+  "splits": {
+    "train": {
+      "qa_count": 6251,
+      "report_count": 2110,
+      "corpus_chunk_count": 23029,
+      "text_chunk_count": 11428,
+      "table_chunk_count": 11601
+    },
+    "dev": {
+      "qa_count": 883,
+      "report_count": 299,
+      "corpus_chunk_count": 3194,
+      "text_chunk_count": 1592,
+      "table_chunk_count": 1602
+    },
+    "test": {
+      "qa_count": 1147,
+      "report_count": 380,
+      "corpus_chunk_count": 4217,
+      "text_chunk_count": 2049,
+      "table_chunk_count": 2168
+    }
+  },
+  "report_overlap_count": {
+    "train_dev": 0,
+    "train_test": 0,
+    "dev_test": 0
+  },
+  "chunking": {
+    "max_text_lines": 5,
+    "max_chars": 1200,
+    "corpus_policy": "Uses report text and table only; excludes QA answers, programs, and gold evidence."
+  },
+  "smoke": {
+    "split": "dev",
+    "count": 50,
+    "seed": 20260721
+  }
+}

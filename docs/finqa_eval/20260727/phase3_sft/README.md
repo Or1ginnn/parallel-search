@@ -8,6 +8,8 @@
 - `sft_smoke_train_results.json`：SFT smoke 训练结果；
 - `sft_train_results.json`：500 条正式 SFT 汇总；
 - `sft_trainer_state.json`：126-step loss、学习率与梯度历史；
+- `sft_raw_example.json`：teacher 构造阶段的真实三消息样本；
+- `sft_llamafactory_example.json`：实际送入 LLaMA-Factory 的多轮 ShareGPT 样本；
 - `llamafactory_training_loss.png`：LLaMA-Factory 原始 loss 图；
 - `finqa_sft_training_curves.png`：根据 trainer state 重绘的报告曲线。
 
