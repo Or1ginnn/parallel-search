@@ -20,7 +20,6 @@ actor_rollout_ref:
   hybrid_engine: True
   model:
     path: ~/models/deepseek-llm-7b-chat
-    resume_path: null
     external_lib: null
     override_config: { }
     enable_gradient_checkpointing: False
@@ -190,7 +189,6 @@ trainer:
   train_num_examine: 0
   log_best_trajectory: False
   trajectory_log_dir: trajectory
-  resume_from_checkpoint: null
   critic_warmup: 0
   default_hdfs_dir: ~/experiments/gsm8k/ppo/${trainer.experiment_name}
   default_local_dir: checkpoints/${trainer.project_name}/${trainer.experiment_name}

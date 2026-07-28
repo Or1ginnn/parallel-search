@@ -225,12 +225,13 @@ tests/test_finqa_v2_reward.py
 
 本地已通过 8 项 reward 单测、Python 编译、shell 语法和 `git diff --check`。下一步
 先运行 10-step A800 smoke，验收新增指标有变化、hard-zero 正常、KL 与梯度有限；
-smoke 通过后从 Step200 启动最长 200-step V2 实验，由人工根据每 25 steps 的验证
+smoke 通过后从 Step200 启动最长 200-step V2 实验，由人工根据每 50 steps 的验证
 趋势决定是否提前停止。
 
 两个训练入口已同时纠正初始化口径：`BASE_MODEL` 默认指向 Phase 4 最佳
 `global_step_200`，并以新实验重新初始化 optimizer、scheduler 和 step 计数；不会再
-错误地从 merged-v3 或历史 Step50 开始。`RESUME_FROM_CHECKPOINT` 默认是 `null`，
-只用于恢复已经启动的 V2 checkpoint。smoke 使用与正式实验一致的 2 卡、batch 32、
+错误地从 merged-v3 或历史 Step50 开始。checkpoint 恢复为 LiteCoA 的轻量保存方式，
+只保存 Actor 模型权重、配置和 tokenizer，不保存 optimizer、scheduler、RNG 或数据
+游标，也不支持原地续训。smoke 使用与正式实验一致的 2 卡、batch 32、
 每题 5 条采样、temperature 1.0；正式 V2 默认上限为 200 steps，Step 0 先验证一次，
-之后保持每 25 steps 验证和保存。
+之后保持每 50 steps 验证和保存。

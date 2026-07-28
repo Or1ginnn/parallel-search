@@ -17,7 +17,6 @@ This trainer supports model-agonistic model initialization with huggingface
 """
 
 import os
-import random
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -685,32 +684,12 @@ class RayPPOTrainer(object):
         self.actor_rollout_wg = all_wg['actor_rollout']
         self.actor_rollout_wg.init_model()
 
-    def _save_checkpoint(self, step, next_epoch, next_batch_idx):
+    def _save_checkpoint(self, step):
         actor_local_path = os.path.join(self.config.trainer.default_local_dir, 'actor',
                                         f'global_step_{step}')
         actor_remote_path = None if self.config.trainer.default_hdfs_dir is None else os.path.join(
             self.config.trainer.default_hdfs_dir, 'actor')
         self.actor_rollout_wg.save_checkpoint(actor_local_path, actor_remote_path)
-
-        trainer_state = {
-            'global_steps': int(step),
-            'next_epoch': int(next_epoch),
-            'next_batch_idx': int(next_batch_idx),
-            'data_seed': int(self.config.data.get('seed', 42)),
-            'train_batch_size': int(self.config.data.train_batch_size),
-            'rollout_n_agent': int(self.config.actor_rollout_ref.rollout.n_agent),
-            'world_size': int(self.config.trainer.n_gpus_per_node * self.config.trainer.nnodes),
-        }
-        with open(os.path.join(actor_local_path, 'trainer_state.json'), 'w', encoding='utf-8') as f:
-            json.dump(trainer_state, f, indent=2)
-        torch.save(
-            {
-                'python_rng_state': random.getstate(),
-                'numpy_rng_state': np.random.get_state(),
-                'torch_rng_state': torch.get_rng_state(),
-            },
-            os.path.join(actor_local_path, 'trainer_rng_state.pt'),
-        )
 
         if self.use_critic:
             critic_local_path = os.path.join(self.config.trainer.default_local_dir, 'critic',
@@ -718,60 +697,6 @@ class RayPPOTrainer(object):
             critic_remote_path = None if self.config.trainer.default_hdfs_dir is None else os.path.join(
                 self.config.trainer.default_hdfs_dir, 'critic')
             self.critic_wg.save_checkpoint(critic_local_path, critic_remote_path)
-
-    def _load_trainer_state(self):
-        checkpoint_path = self.config.trainer.get('resume_from_checkpoint', None)
-        actor_checkpoint_path = self.config.actor_rollout_ref.model.get('resume_path', None)
-        if bool(checkpoint_path) != bool(actor_checkpoint_path):
-            raise ValueError(
-                'trainer.resume_from_checkpoint and actor_rollout_ref.model.resume_path '
-                'must either both be set or both be null'
-            )
-        if checkpoint_path and os.path.abspath(checkpoint_path) != os.path.abspath(actor_checkpoint_path):
-            raise ValueError(
-                'Trainer and actor resume paths must reference the same checkpoint: '
-                f'{checkpoint_path} != {actor_checkpoint_path}'
-            )
-        if not checkpoint_path:
-            return 0, 0, 0
-
-        state_path = os.path.join(checkpoint_path, 'trainer_state.json')
-        rng_path = os.path.join(checkpoint_path, 'trainer_rng_state.pt')
-        if not os.path.isfile(state_path):
-            raise FileNotFoundError(f'Missing trainer state: {state_path}')
-        if not os.path.isfile(rng_path):
-            raise FileNotFoundError(f'Missing trainer RNG state: {rng_path}')
-
-        with open(state_path, encoding='utf-8') as f:
-            state = json.load(f)
-
-        expected = {
-            'data_seed': int(self.config.data.get('seed', 42)),
-            'train_batch_size': int(self.config.data.train_batch_size),
-            'rollout_n_agent': int(self.config.actor_rollout_ref.rollout.n_agent),
-            'world_size': int(self.config.trainer.n_gpus_per_node * self.config.trainer.nnodes),
-        }
-        mismatches = {
-            key: (state.get(key), value)
-            for key, value in expected.items()
-            if state.get(key) != value
-        }
-        if mismatches:
-            raise ValueError(f'Resume configuration mismatch: {mismatches}')
-
-        rng_state = torch.load(rng_path, map_location='cpu', weights_only=False)
-        random.setstate(rng_state['python_rng_state'])
-        np.random.set_state(rng_state['numpy_rng_state'])
-        torch.set_rng_state(rng_state['torch_rng_state'])
-
-        global_steps = int(state['global_steps'])
-        next_epoch = int(state['next_epoch'])
-        next_batch_idx = int(state['next_batch_idx'])
-        print(
-            f'Resuming trainer from {checkpoint_path}: step={global_steps}, '
-            f'epoch={next_epoch}, batch_idx={next_batch_idx}'
-        )
-        return global_steps, next_epoch, next_batch_idx
 
     def _balance_batch(self, batch: DataProto, metrics, logging_prefix='global_seqlen'):
         """Reorder the data on single controller such that each dp rank gets similar total tokens"""
@@ -894,12 +819,7 @@ class RayPPOTrainer(object):
         """
 
         logger = self.logger
-        self.global_steps, start_epoch, start_batch_idx = self._load_trainer_state()
-        if self.global_steps >= self.total_training_steps:
-            raise ValueError(
-                f'Resume step {self.global_steps} must be smaller than total_training_steps '
-                f'{self.total_training_steps}'
-            )
+        self.global_steps = 0
         # perform validation before training
         # currently, we only support validation using the reward_function.
         if self.val_reward_fn is not None and self.config.trainer.get('val_before_train', True):
@@ -932,11 +852,9 @@ class RayPPOTrainer(object):
         )
 
         # start training loop
-        for epoch in range(start_epoch, self.config.trainer.total_epochs):
+        for epoch in range(self.config.trainer.total_epochs):
             train_dataloader = self._build_train_dataloader(epoch=epoch)
             for batch_idx, batch_dict in enumerate(train_dataloader):
-                if epoch == start_epoch and batch_idx < start_batch_idx:
-                    continue
                 step = self.global_steps + 1
                 print(f'epoch {epoch}, step {step}')
                 metrics = {}
@@ -1079,16 +997,7 @@ class RayPPOTrainer(object):
                     if self.config.trainer.save_freq > 0 and \
                             step % self.config.trainer.save_freq == 0:
                         with _timer('save_checkpoint', timing_raw):
-                            next_epoch = epoch
-                            next_batch_idx = batch_idx + 1
-                            if next_batch_idx >= len(train_dataloader):
-                                next_epoch += 1
-                                next_batch_idx = 0
-                            self._save_checkpoint(
-                                step=step,
-                                next_epoch=next_epoch,
-                                next_batch_idx=next_batch_idx,
-                            )
+                            self._save_checkpoint(step=step)
 
                 # collect metrics
                 metrics.update(compute_data_metrics(batch=batch, use_critic=self.use_critic))

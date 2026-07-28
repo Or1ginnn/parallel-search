@@ -2,7 +2,6 @@
 set -euo pipefail
 
 # FinQA Phase 5 V2: start a new experiment from the best Phase 4 Step200 policy.
-# RESUME_FROM_CHECKPOINT is only for resuming a checkpoint created by this V2 run.
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
 export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-XFORMERS}"
@@ -10,7 +9,6 @@ export RAY_memory_usage_threshold="${RAY_memory_usage_threshold:-0.99}"
 
 DATA_DIR="${DATA_DIR:-/mnt/data1/zar/finance/data/finance_finqa/grpo_nocalc}"
 BASE_MODEL="${BASE_MODEL:-/mnt/data1/zar/search-1/Search-R1/verl_checkpoints/finqa-phase4-grpo-v3-stable/actor/global_step_200}"
-RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-null}"
 
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-finqa-phase5-v2-step200}"
 WAND_PROJECT="${WAND_PROJECT:-Finance_Agent}"
@@ -25,8 +23,8 @@ VAL_DATA_NUM="${VAL_DATA_NUM:-320}"
 ROLLOUT_N_AGENT="${ROLLOUT_N_AGENT:-5}"
 ROLLOUT_TEMPERATURE="${ROLLOUT_TEMPERATURE:-1.0}"
 TOTAL_TRAINING_STEPS="${TOTAL_TRAINING_STEPS:-200}"
-TEST_FREQ="${TEST_FREQ:-25}"
-SAVE_FREQ="${SAVE_FREQ:-25}"
+TEST_FREQ="${TEST_FREQ:-50}"
+SAVE_FREQ="${SAVE_FREQ:-50}"
 VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-true}"
 
 mkdir -p "$RAY_TMPDIR" "$RAY_SPILL_DIR" "$TRAJECTORY_LOG_DIR" "$CHECKPOINT_DIR"
@@ -48,7 +46,6 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     algorithm.kl_ctrl.kl_coef=0.001 \
     algorithm.no_think_rl=false \
     actor_rollout_ref.model.path="$BASE_MODEL" \
-    actor_rollout_ref.model.resume_path="$RESUME_FROM_CHECKPOINT" \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
     actor_rollout_ref.model.use_remove_padding=true \
     actor_rollout_ref.actor.optim.lr=5e-7 \
@@ -97,7 +94,6 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.experiment_name="$EXPERIMENT_NAME" \
     trainer.log_best_trajectory=true \
     trainer.trajectory_log_dir="$TRAJECTORY_LOG_DIR" \
-    trainer.resume_from_checkpoint="$RESUME_FROM_CHECKPOINT" \
     trainer.total_epochs=10 \
     trainer.total_training_steps="$TOTAL_TRAINING_STEPS" \
     trainer.default_hdfs_dir=null \
