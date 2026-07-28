@@ -196,6 +196,10 @@ train/parallel_retrieval_gain_mean
 train/parallel_retrieval_gain_rate
 train/numeric_near_miss_quality_mean
 train/numeric_near_miss_rate
+train/grpo_group_task_score_std_mean
+train/grpo_zero_task_score_variance_group_rate
+train/grpo_group_reward_std_mean
+train/grpo_zero_reward_variance_group_rate
 ```
 
 在 Step200 的 883 条真实轨迹上做离线重算，得到：

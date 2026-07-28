@@ -263,6 +263,31 @@ def compute_data_metrics(batch, use_critic=True):
             torch.mean(torch.eq(prompt_length, max_prompt_length).float()).detach().item(),
     }
 
+    if 'uid' in batch.non_tensor_batch:
+        group_ids = np.asarray(batch.non_tensor_batch['uid'], dtype=object)
+
+        def _group_stds(values):
+            grouped_values = defaultdict(list)
+            for group_id, value in zip(group_ids, values):
+                grouped_values[group_id].append(float(value))
+            return np.array(
+                [np.std(group_values) for group_values in grouped_values.values()],
+                dtype=np.float32,
+            )
+
+        task_score_group_stds = _group_stds(sequence_score.detach().cpu().tolist())
+        reward_group_stds = _group_stds(sequence_reward.detach().cpu().tolist())
+        if task_score_group_stds.size:
+            metrics['train/grpo_group_task_score_std_mean'] = float(task_score_group_stds.mean())
+            metrics['train/grpo_zero_task_score_variance_group_rate'] = float(
+                (task_score_group_stds <= 1e-8).mean()
+            )
+        if reward_group_stds.size:
+            metrics['train/grpo_group_reward_std_mean'] = float(reward_group_stds.mean())
+            metrics['train/grpo_zero_reward_variance_group_rate'] = float(
+                (reward_group_stds <= 1e-8).mean()
+            )
+
     # metrics for actions
     if 'turns_stats' in batch.meta_info:
         metrics['env/number_of_actions/mean'] = float(np.array(batch.meta_info['turns_stats'], dtype=np.int16).mean())
