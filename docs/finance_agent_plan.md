@@ -76,7 +76,14 @@
 
 ## Phase 5：错误分析与业务化评测
 
-状态：待完成。
+状态：进行中。
+
+- 已完成 Step200 / Step300 统一全量 dev 对比，Step200 以 54.88% Numeric EM 保持最佳；
+- 已定位 continuation 从 Step332 开始的非有限梯度，并完成 `low_var_kl` 本地数值稳定性修复；
+- 已完成 Step200 的 393 条错误归因，并据此实现无需 `<calculate>` 的 FinQA V2 reward；
+- V2 使用 program 操作数检索覆盖、并行 query 边际覆盖和 1%-5% 数值近似小奖励，
+  同时保留原 hard-zero；
+- A800 数值稳定性/V2 smoke、单 query 对照和最终 test 仍待完成。
 
 - 按 retrieval miss、证据命中但计算错误、交互格式错误拆分失败样本。
 - 对 1-step 与多步 program 分层统计准确率。
@@ -87,3 +94,5 @@
   对照。
 
 验收：形成完整误差报告、对照实验表和可展示的金融投研问答案例。
+
+阶段过程记录见 `finance_phase5_optimization.md`。

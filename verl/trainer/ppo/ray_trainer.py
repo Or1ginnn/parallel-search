@@ -286,6 +286,18 @@ def compute_data_metrics(batch, use_critic=True):
     if 'hard_zero_scores' in batch.meta_info:
         hard_zero_scores = np.array(batch.meta_info['hard_zero_scores'], dtype=np.float32)
         metrics['train/hard_zero_rate'] = float(hard_zero_scores.mean())
+    if 'retrieval_coverage_scores' in batch.meta_info:
+        metrics['train/retrieval_coverage_mean'] = float(
+            np.array(batch.meta_info['retrieval_coverage_scores'], dtype=np.float32).mean()
+        )
+    if 'parallel_retrieval_gain_scores' in batch.meta_info:
+        parallel_gain = np.array(batch.meta_info['parallel_retrieval_gain_scores'], dtype=np.float32)
+        metrics['train/parallel_retrieval_gain_mean'] = float(parallel_gain.mean())
+        metrics['train/parallel_retrieval_gain_rate'] = float((parallel_gain > 0).mean())
+    if 'numeric_near_miss_scores' in batch.meta_info:
+        near_miss = np.array(batch.meta_info['numeric_near_miss_scores'], dtype=np.float32)
+        metrics['train/numeric_near_miss_quality_mean'] = float(near_miss.mean())
+        metrics['train/numeric_near_miss_rate'] = float((near_miss > 0).mean())
 
     return metrics
 

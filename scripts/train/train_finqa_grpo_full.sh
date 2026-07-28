@@ -1,31 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Reproduces the stable Phase 4 FinQA GRPO configuration (W&B q51bp5pw).
-# Override the paths below for a different server. Set RESUME_FROM_CHECKPOINT=null
-# to start a fresh 200-step run from BASE_MODEL.
+# FinQA Phase 5 V2: start a new experiment from the best Phase 4 Step200 policy.
+# RESUME_FROM_CHECKPOINT is only for resuming a checkpoint created by this V2 run.
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
 export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-XFORMERS}"
 export RAY_memory_usage_threshold="${RAY_memory_usage_threshold:-0.99}"
 
 DATA_DIR="${DATA_DIR:-/mnt/data1/zar/finance/data/finance_finqa/grpo_nocalc}"
-BASE_MODEL="${BASE_MODEL:-/mnt/data1/zar/finance/models/finqa_litecoa_sft_merged_fp32_v3}"
-RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-/mnt/data1/zar/search-1/Search-R1/verl_checkpoints/finqa-phase4-grpo-v3-short-resumable/actor/global_step_50}"
+BASE_MODEL="${BASE_MODEL:-/mnt/data1/zar/search-1/Search-R1/verl_checkpoints/finqa-phase4-grpo-v3-stable/actor/global_step_200}"
+RESUME_FROM_CHECKPOINT="${RESUME_FROM_CHECKPOINT:-null}"
 
-EXPERIMENT_NAME="${EXPERIMENT_NAME:-finqa-phase4-grpo-v3-stable}"
+EXPERIMENT_NAME="${EXPERIMENT_NAME:-finqa-phase5-v2-step200}"
 WAND_PROJECT="${WAND_PROJECT:-Finance_Agent}"
 CHECKPOINT_DIR="${CHECKPOINT_DIR:-verl_checkpoints/$EXPERIMENT_NAME}"
-TRAJECTORY_LOG_DIR="${TRAJECTORY_LOG_DIR:-/mnt/data1/zar/finance/trajectory/finqa_phase4_stable}"
-RAY_TMPDIR="${RAY_TMPDIR:-/mnt/data1/zar/finance/rp4t}"
-RAY_SPILL_DIR="${RAY_SPILL_DIR:-/mnt/data1/zar/finance/ray_spill/finqa_phase4_stable}"
+TRAJECTORY_LOG_DIR="${TRAJECTORY_LOG_DIR:-/mnt/data1/zar/finance/trajectory/finqa_phase5_v2}"
+RAY_TMPDIR="${RAY_TMPDIR:-/mnt/data1/zar/finance/ray_tmp/finqa_phase5_v2}"
+RAY_SPILL_DIR="${RAY_SPILL_DIR:-/mnt/data1/zar/finance/ray_spill/finqa_phase5_v2}"
 
 TRAIN_BATCH_SIZE="${TRAIN_BATCH_SIZE:-32}"
 VAL_BATCH_SIZE="${VAL_BATCH_SIZE:-16}"
 VAL_DATA_NUM="${VAL_DATA_NUM:-320}"
 ROLLOUT_N_AGENT="${ROLLOUT_N_AGENT:-5}"
 ROLLOUT_TEMPERATURE="${ROLLOUT_TEMPERATURE:-1.0}"
-TOTAL_TRAINING_STEPS="${TOTAL_TRAINING_STEPS:-200}"
+TOTAL_TRAINING_STEPS="${TOTAL_TRAINING_STEPS:-100}"
 TEST_FREQ="${TEST_FREQ:-25}"
 SAVE_FREQ="${SAVE_FREQ:-25}"
 
@@ -79,9 +78,12 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     reward_model.litecoa_reward=true \
     reward_model.litecoa_answer_present_bonus=0.05 \
     reward_model.litecoa_no_generated_information_bonus=0.05 \
-    reward_model.litecoa_evidence_hit_bonus=0.05 \
     reward_model.litecoa_valid_search_bonus=0.05 \
-    reward_model.litecoa_parallel_evidence_bonus=0.05 \
+    reward_model.finqa_v2_reward=true \
+    reward_model.finqa_retrieval_coverage_bonus=0.05 \
+    reward_model.finqa_parallel_retrieval_gain_bonus=0.05 \
+    reward_model.finqa_near_miss_bonus=0.05 \
+    reward_model.finqa_near_miss_max_relative_error=0.05 \
     trainer.logger=['wandb'] \
     +trainer.val_only=false \
     +trainer.val_before_train=false \

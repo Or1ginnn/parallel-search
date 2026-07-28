@@ -52,6 +52,40 @@ def _parse_numeric_answer(text):
     return value, unit
 
 
+def numeric_relative_error(prediction, target):
+    """Return a unit-aware relative error, or ``None`` for non-numeric text.
+
+    Percentages are converted to ratios by ``_parse_numeric_answer``. Explicit
+    magnitude units are applied only when both sides provide one, matching the
+    behavior used by ``numeric_equivalent``.
+    """
+
+    parsed_prediction = _parse_numeric_answer(prediction)
+    parsed_target = _parse_numeric_answer(target)
+    if parsed_prediction is None or parsed_target is None:
+        return None
+
+    prediction_value, prediction_unit = parsed_prediction
+    target_value, target_unit = parsed_target
+    if prediction_unit and target_unit:
+        prediction_value *= _UNIT_SCALE[prediction_unit]
+        target_value *= _UNIT_SCALE[target_unit]
+
+    absolute_error = abs(prediction_value - target_value)
+    if abs(target_value) <= 1e-12:
+        return 0.0 if absolute_error <= 1e-12 else math.inf
+    return absolute_error / abs(target_value)
+
+
+def minimum_numeric_relative_error(prediction, gold_answers, executable_answer=None):
+    """Return the smallest numeric error against FinQA gold/program outputs."""
+
+    targets = _as_list(gold_answers) + _as_list(executable_answer)
+    errors = [numeric_relative_error(prediction, target) for target in targets]
+    finite_errors = [error for error in errors if error is not None and math.isfinite(error)]
+    return min(finite_errors) if finite_errors else None
+
+
 def numeric_equivalent(prediction, target, relative_tolerance=0.01):
     """Compare FinQA answers with percentage and optional unit awareness."""
 

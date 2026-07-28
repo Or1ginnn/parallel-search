@@ -268,6 +268,7 @@ class DataParallelPPOActor(BasePPOActor):
 
                 if self.config.use_kl_loss:
                     ref_log_prob = data['ref_log_prob']
+                    kl_log_ratio = ref_log_prob.float() - log_prob.float()
                     # compute kl loss
                     kld = core_algos.kl_penalty(logprob=log_prob,
                                                 ref_logprob=ref_log_prob,
@@ -277,6 +278,10 @@ class DataParallelPPOActor(BasePPOActor):
                     policy_loss = policy_loss + kl_loss * self.config.kl_loss_coef
                     metrics['actor/kl_loss'] = kl_loss.detach().item()
                     metrics['actor/kl_coef'] = self.config.kl_loss_coef
+                    metrics['actor/kl_log_ratio_abs_max'] = kl_log_ratio.detach().abs().max().item()
+                    metrics['actor/kl_log_ratio_clipfrac'] = (
+                        kl_log_ratio.detach().abs() > core_algos.LOW_VAR_KL_LOG_RATIO_CLAMP
+                    ).float().mean().item()
 
                 loss = policy_loss / self.gradient_accumulation
                 max_ppo_kl = self.config.get('max_ppo_kl', None)

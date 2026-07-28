@@ -25,6 +25,9 @@ from collections import defaultdict
 import verl.utils.torch_functional as verl_F
 
 
+LOW_VAR_KL_LOG_RATIO_CLAMP = 20.0
+
+
 class AdaptiveKLController:
     """
     Adaptive KL controller described in the paper:
@@ -262,9 +265,13 @@ def kl_penalty(logprob: torch.FloatTensor, ref_logprob: torch.FloatTensor, kl_pe
     # J. Schulman. Approximating kl divergence, 2020.
     # # URL http://joschu.net/blog/kl-approx.html.
     if kl_penalty == 'low_var_kl':
-        kl = ref_logprob - logprob
-        ratio = torch.exp(kl)
-        kld = (ratio - kl - 1).contiguous()
+        # Clamp before exponentiation. Clamping only the final penalty can hide
+        # an inf in the forward pass while exp's backward still produces NaN.
+        kl = (ref_logprob.float() - logprob.float()).clamp(
+            min=-LOW_VAR_KL_LOG_RATIO_CLAMP,
+            max=LOW_VAR_KL_LOG_RATIO_CLAMP,
+        )
+        kld = (torch.expm1(kl) - kl).contiguous()
         return torch.clamp(kld, min=-10, max=10)
 
     if kl_penalty == "full":

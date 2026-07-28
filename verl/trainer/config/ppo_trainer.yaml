@@ -153,6 +153,11 @@ reward_model:
   litecoa_evidence_hit_bonus: 0.05
   litecoa_valid_search_bonus: 0.03
   litecoa_parallel_evidence_bonus: 0.03
+  finqa_v2_reward: False
+  finqa_retrieval_coverage_bonus: 0.05
+  finqa_parallel_retrieval_gain_bonus: 0.05
+  finqa_near_miss_bonus: 0.05
+  finqa_near_miss_max_relative_error: 0.05
 
 retriever:
   url: "http://127.0.0.1:8000/retrieve"

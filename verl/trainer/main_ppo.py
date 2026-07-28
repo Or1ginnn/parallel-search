@@ -42,7 +42,12 @@ class RewardManager():
                  litecoa_no_generated_information_bonus=0.05,
                  litecoa_evidence_hit_bonus=0.05,
                  litecoa_valid_search_bonus=0.03,
-                 litecoa_parallel_evidence_bonus=0.03) -> None:
+                 litecoa_parallel_evidence_bonus=0.03,
+                 finqa_v2_reward=False,
+                 finqa_retrieval_coverage_bonus=0.05,
+                 finqa_parallel_retrieval_gain_bonus=0.05,
+                 finqa_near_miss_bonus=0.05,
+                 finqa_near_miss_max_relative_error=0.05) -> None:
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.format_score = format_score
@@ -52,6 +57,11 @@ class RewardManager():
         self.litecoa_evidence_hit_bonus = litecoa_evidence_hit_bonus
         self.litecoa_valid_search_bonus = litecoa_valid_search_bonus
         self.litecoa_parallel_evidence_bonus = litecoa_parallel_evidence_bonus
+        self.finqa_v2_reward = finqa_v2_reward
+        self.finqa_retrieval_coverage_bonus = finqa_retrieval_coverage_bonus
+        self.finqa_parallel_retrieval_gain_bonus = finqa_parallel_retrieval_gain_bonus
+        self.finqa_near_miss_bonus = finqa_near_miss_bonus
+        self.finqa_near_miss_max_relative_error = finqa_near_miss_max_relative_error
 
     def _decode_response_parts(self, data_item, prompt_length, valid_response_ids, valid_response_length):
         full_response_str = self.tokenizer.decode(valid_response_ids)
@@ -75,6 +85,9 @@ class RewardManager():
         reward_tensor = torch.zeros_like(data.batch['responses'], dtype=torch.float32)
         answer_em_scores = []
         hard_zero_scores = []
+        retrieval_coverage_scores = []
+        parallel_retrieval_gain_scores = []
+        numeric_near_miss_scores = []
 
         # all_scores = []
 
@@ -115,7 +128,7 @@ class RewardManager():
                     model_response_str=model_response_str,
                     ground_truth=ground_truth,
                 )
-                score = litecoa_qa.compute_score_em_litecoa(
+                reward_components = litecoa_qa.compute_score_em_litecoa_components(
                     model_response_str=model_response_str,
                     retrieved_information_str=retrieved_information_str,
                     ground_truth=ground_truth,
@@ -124,7 +137,13 @@ class RewardManager():
                     evidence_hit_bonus=self.litecoa_evidence_hit_bonus,
                     valid_search_bonus=self.litecoa_valid_search_bonus,
                     parallel_evidence_bonus=self.litecoa_parallel_evidence_bonus,
+                    finqa_v2_reward=self.finqa_v2_reward,
+                    finqa_retrieval_coverage_bonus=self.finqa_retrieval_coverage_bonus,
+                    finqa_parallel_retrieval_gain_bonus=self.finqa_parallel_retrieval_gain_bonus,
+                    finqa_near_miss_bonus=self.finqa_near_miss_bonus,
+                    finqa_near_miss_max_relative_error=self.finqa_near_miss_max_relative_error,
                 )
+                score = reward_components['score']
                 valid_action_stats = data.meta_info.get('valid_action_stats', [])
                 valid_action_count = valid_action_stats[i] if i < len(valid_action_stats) else 1
                 invalid_action_stats = data.meta_info.get('invalid_action_stats', [])
@@ -157,6 +176,10 @@ class RewardManager():
             reward_tensor[i, valid_response_length - 1] = score
             answer_em_scores.append(float(answer_em))
             hard_zero_scores.append(float(hard_zero))
+            if self.litecoa_reward and self.finqa_v2_reward and data_source == 'finqa':
+                retrieval_coverage_scores.append(float(reward_components['retrieval_coverage']))
+                parallel_retrieval_gain_scores.append(float(reward_components['parallel_retrieval_gain']))
+                numeric_near_miss_scores.append(float(reward_components['numeric_near_miss_quality']))
             # all_scores.append(score)
 
             if data_source not in already_print_data_sources:
@@ -175,6 +198,10 @@ class RewardManager():
 
         data.meta_info['answer_em_scores'] = answer_em_scores
         data.meta_info['hard_zero_scores'] = hard_zero_scores
+        if retrieval_coverage_scores:
+            data.meta_info['retrieval_coverage_scores'] = retrieval_coverage_scores
+            data.meta_info['parallel_retrieval_gain_scores'] = parallel_retrieval_gain_scores
+            data.meta_info['numeric_near_miss_scores'] = numeric_near_miss_scores
 
         return reward_tensor
 
@@ -271,6 +298,11 @@ def main_task(config):
         litecoa_evidence_hit_bonus=config.reward_model.get('litecoa_evidence_hit_bonus', 0.05),
         litecoa_valid_search_bonus=config.reward_model.get('litecoa_valid_search_bonus', 0.03),
         litecoa_parallel_evidence_bonus=config.reward_model.get('litecoa_parallel_evidence_bonus', 0.03),
+        finqa_v2_reward=config.reward_model.get('finqa_v2_reward', False),
+        finqa_retrieval_coverage_bonus=config.reward_model.get('finqa_retrieval_coverage_bonus', 0.05),
+        finqa_parallel_retrieval_gain_bonus=config.reward_model.get('finqa_parallel_retrieval_gain_bonus', 0.05),
+        finqa_near_miss_bonus=config.reward_model.get('finqa_near_miss_bonus', 0.05),
+        finqa_near_miss_max_relative_error=config.reward_model.get('finqa_near_miss_max_relative_error', 0.05),
     )
 
     # Note that we always use function-based RM for validation
