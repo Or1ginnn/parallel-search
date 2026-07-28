@@ -24,9 +24,10 @@ VAL_BATCH_SIZE="${VAL_BATCH_SIZE:-16}"
 VAL_DATA_NUM="${VAL_DATA_NUM:-320}"
 ROLLOUT_N_AGENT="${ROLLOUT_N_AGENT:-5}"
 ROLLOUT_TEMPERATURE="${ROLLOUT_TEMPERATURE:-1.0}"
-TOTAL_TRAINING_STEPS="${TOTAL_TRAINING_STEPS:-100}"
+TOTAL_TRAINING_STEPS="${TOTAL_TRAINING_STEPS:-200}"
 TEST_FREQ="${TEST_FREQ:-25}"
 SAVE_FREQ="${SAVE_FREQ:-25}"
+VAL_BEFORE_TRAIN="${VAL_BEFORE_TRAIN:-true}"
 
 mkdir -p "$RAY_TMPDIR" "$RAY_SPILL_DIR" "$TRAJECTORY_LOG_DIR" "$CHECKPOINT_DIR"
 
@@ -86,7 +87,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     reward_model.finqa_near_miss_max_relative_error=0.05 \
     trainer.logger=['wandb'] \
     +trainer.val_only=false \
-    +trainer.val_before_train=false \
+    +trainer.val_before_train="$VAL_BEFORE_TRAIN" \
     trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
     trainer.save_freq="$SAVE_FREQ" \
