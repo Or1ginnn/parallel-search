@@ -10,6 +10,7 @@ data:
   max_start_length: 256
   max_obs_length: 512
   train_batch_size: 1024
+  gen_batch_size: null
   val_batch_size: 1312
   seed: 42
   return_raw_input_ids: False  # This should be set to true when the tokenizer between policy and rm differs
@@ -173,6 +174,11 @@ algorithm:
   kl_ctrl:
     type: fixed
     kl_coef: 0.001
+  filter_groups:
+    enable: False
+    metric: seq_reward
+    min_std: 1.0e-8
+    max_num_gen_batches: 1
   state_masking:
     start_state_marker: "<information>"
     end_state_marker: "</information>"

@@ -28,6 +28,32 @@ import verl.utils.torch_functional as verl_F
 LOW_VAR_KL_LOG_RATIO_CLAMP = 20.0
 
 
+def select_informative_group_indices(index, scores, max_groups=None, min_std=1e-8):
+    """Select complete prompt groups whose trajectory rewards have non-zero variance."""
+    group_indices = defaultdict(list)
+    for row_idx, group_id in enumerate(np.asarray(index, dtype=object)):
+        group_indices[group_id].append(row_idx)
+
+    score_values = np.asarray(scores, dtype=np.float32)
+    if score_values.ndim != 1 or score_values.shape[0] != len(index):
+        raise ValueError("scores must contain exactly one scalar per trajectory")
+
+    selected_indices = []
+    selected_group_ids = []
+    group_stds = {}
+    for group_id, row_indices in group_indices.items():
+        group_std = float(np.std(score_values[row_indices]))
+        group_stds[group_id] = group_std
+        if group_std <= min_std:
+            continue
+        if max_groups is not None and len(selected_group_ids) >= max_groups:
+            continue
+        selected_group_ids.append(group_id)
+        selected_indices.extend(row_indices)
+
+    return np.asarray(selected_indices, dtype=np.int64), selected_group_ids, group_stds
+
+
 class AdaptiveKLController:
     """
     Adaptive KL controller described in the paper:

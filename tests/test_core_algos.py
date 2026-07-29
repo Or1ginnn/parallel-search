@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from verl.trainer.ppo.core_algos import kl_penalty
+from verl.trainer.ppo.core_algos import kl_penalty, select_informative_group_indices
 
 
 class LowVarianceKLPenaltyTest(unittest.TestCase):
@@ -37,6 +37,30 @@ class LowVarianceKLPenaltyTest(unittest.TestCase):
 
         self.assertEqual(penalty.dtype, torch.float32)
         self.assertTrue(torch.isfinite(logprob.grad).all())
+
+
+class DynamicGroupSamplingTest(unittest.TestCase):
+
+    def test_filters_zero_variance_groups_and_preserves_complete_groups(self):
+        indices, group_ids, group_stds = select_informative_group_indices(
+            index=["q1", "q1", "q2", "q2", "q3", "q3"],
+            scores=[0.0, 1.0, 0.0, 0.0, 0.2, 0.4],
+        )
+
+        self.assertEqual(group_ids, ["q1", "q3"])
+        self.assertEqual(indices.tolist(), [0, 1, 4, 5])
+        self.assertGreater(group_stds["q1"], 0.0)
+        self.assertEqual(group_stds["q2"], 0.0)
+
+    def test_caps_selection_by_whole_group(self):
+        indices, group_ids, _ = select_informative_group_indices(
+            index=["q1", "q1", "q2", "q2"],
+            scores=[0.0, 1.0, 0.0, 1.0],
+            max_groups=1,
+        )
+
+        self.assertEqual(group_ids, ["q1"])
+        self.assertEqual(indices.tolist(), [0, 1])
 
 
 if __name__ == "__main__":

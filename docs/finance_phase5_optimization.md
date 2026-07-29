@@ -242,3 +242,41 @@ EM 均值升至 59.88%，因此 200-step 上限过早。后续入口默认改为
 并由人工停止，warmup 调整为 10 步（ratio 0.005）。`ACTOR_INIT_MODEL` 只加载 V2
 Step200 的 Actor 权重，`BASE_MODEL` 仍指向 Phase 4 Step200 参考策略；optimizer、
 scheduler 和步数从零初始化，checkpoint 继续只保存模型与 tokenizer。
+
+## 10. V2 动态题组采样
+
+V2 正式训练中约一半题组的 5 条 trajectory 获得完全相同的 reward。这类题组经
+GRPO 组内归一化后 advantage 全为 0，继续送入 Actor 只消耗 rollout 和反向计算，
+不提供有效策略梯度。因此下一轮只加入一项 DAPO 风格的动态题组采样，不叠加
+GDPO、IGPO、过程奖励或新的 action。
+
+具体流程：
+
+1. 每个生成批次采样 64 个 question，每题保持 5 条 trajectory；
+2. 继续使用现有 FinQA V2 reward 和 hard-zero 规则计算每条 trajectory 的标量分数；
+3. 以 `uid` 按题分组，仅保留组内 reward 标准差大于 `1e-8` 的完整题组；
+4. 凑齐 32 个有效题组后，才计算 old/ref log-prob、GRPO advantage 和 Actor 更新；
+5. 第一批不足时最多再生成一批，两个生成批次后仍不足则明确报错，不用零方差题组
+   静默填充训练 batch。
+
+保持不变的部分包括：Step200 初始化模型、V2 reward 系数、hard-zero、无
+`<calculate>` prompt、`n_agent=5`、Top-K 3、information 1500 tokens、KL loss
+系数 0.005 和 Numeric EM 验证。Actor 学习率默认设为 `7.5e-7`，有效训练 batch
+仍为 32 个 question；64 只是 rollout 候选生成 batch，不是优化 batch。
+
+新增 W&B 指标：
+
+```text
+train/dynamic_sampling/generated_batch_count
+train/dynamic_sampling/candidate_group_count
+train/dynamic_sampling/effective_group_count
+train/dynamic_sampling/informative_group_rate
+train/dynamic_sampling/zero_variance_group_rate
+train/dynamic_sampling/filtered_group_rate
+train/dynamic_sampling/all_correct_group_rate
+train/dynamic_sampling/all_wrong_group_rate
+```
+
+该版本的验收重点不是 10-step smoke 的 validation 高低，而是每次更新稳定获得
+32 个完整有效题组、过滤前后的统计正确、reward 小数项未丢失，并且 KL、梯度和
+optimizer step 保持有限且无跳过。
