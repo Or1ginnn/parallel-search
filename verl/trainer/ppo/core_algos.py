@@ -54,6 +54,47 @@ def select_informative_group_indices(index, scores, max_groups=None, min_std=1e-
     return np.asarray(selected_indices, dtype=np.int64), selected_group_ids, group_stds
 
 
+def pad_trajectory_tensors_for_concat(tensor_batches, pad_token_id):
+    """Right-pad variable-length rollout tensors so batches can be concatenated."""
+    if not tensor_batches:
+        raise ValueError("tensor_batches must not be empty")
+
+    tensor_keys = list(tensor_batches[0].keys())
+    expected_keys = set(tensor_keys)
+    for tensor_batch in tensor_batches[1:]:
+        if set(tensor_batch.keys()) != expected_keys:
+            raise ValueError("all rollout batches must contain the same tensor keys")
+
+    token_keys = {"input_ids", "prompts", "responses", "responses_with_info_mask"}
+    left_pad_keys = {"prompts"}
+    for key in tensor_keys:
+        tensors = [tensor_batch[key] for tensor_batch in tensor_batches]
+        if any(tensor.ndim < 2 for tensor in tensors):
+            if len({tuple(tensor.shape[1:]) for tensor in tensors}) != 1:
+                raise ValueError(f"cannot pad non-sequence tensor {key}")
+            continue
+
+        non_sequence_shapes = {tuple(tensor.shape[1:-1]) for tensor in tensors}
+        if len(non_sequence_shapes) != 1:
+            raise ValueError(f"non-sequence dimensions differ for tensor {key}")
+
+        target_length = max(tensor.shape[-1] for tensor in tensors)
+        pad_value = pad_token_id if key in token_keys else 0
+        for tensor_batch, tensor in zip(tensor_batches, tensors):
+            pad_length = target_length - tensor.shape[-1]
+            if pad_length <= 0:
+                continue
+            pad = (pad_length, 0) if key in left_pad_keys else (0, pad_length)
+            tensor_batch[key] = torch.nn.functional.pad(
+                tensor,
+                pad,
+                mode="constant",
+                value=pad_value,
+            )
+
+    return tensor_batches
+
+
 class AdaptiveKLController:
     """
     Adaptive KL controller described in the paper:

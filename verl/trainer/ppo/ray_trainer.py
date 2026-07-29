@@ -847,11 +847,14 @@ class RayPPOTrainer(object):
             meta_info=meta_info,
         )
 
-    @classmethod
-    def _concat_dataprotos(cls, batches):
+    def _concat_dataprotos(self, batches):
         if len(batches) == 1:
             return batches[0]
 
+        core_algos.pad_trajectory_tensors_for_concat(
+            tensor_batches=[batch.batch for batch in batches],
+            pad_token_id=self.tokenizer.pad_token_id,
+        )
         merged = DataProto.concat(batches)
         meta_info = {}
         meta_keys = set().union(*(batch.meta_info.keys() for batch in batches))
@@ -864,7 +867,7 @@ class RayPPOTrainer(object):
 
             values = [batch.meta_info[key] for batch in batches]
             is_per_sample = all(
-                cls._is_per_sample_meta(value, len(batch))
+                self._is_per_sample_meta(value, len(batch))
                 for value, batch in zip(values, batches)
             )
             if not is_per_sample:

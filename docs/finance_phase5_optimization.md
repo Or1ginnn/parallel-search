@@ -280,3 +280,10 @@ train/dynamic_sampling/all_wrong_group_rate
 该版本的验收重点不是 10-step smoke 的 validation 高低，而是每次更新稳定获得
 32 个完整有效题组、过滤前后的统计正确、reward 小数项未丢失，并且 KL、梯度和
 optimizer step 保持有限且无跳过。
+
+首次动态采样 smoke 在第 1 次更新前发现跨生成批次拼接缺陷：Agent loop 会按每个
+候选批次的最长有效 trajectory 裁剪张量，导致两批 `input_ids` 的序列长度不同，
+直接 `DataProto.concat` 报维度不一致。该问题不涉及 reward、retriever、GPU OOM
+或模型坍塌。修复后，拼接前会按键补齐到本轮最大长度：token 张量使用 tokenizer
+pad id，attention/info mask、position id 和 reward 张量使用 0；有效 token、reward
+位置和 GRPO 分组均保持不变，并新增异长 rollout 拼接回归测试。
