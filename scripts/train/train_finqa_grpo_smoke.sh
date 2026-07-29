@@ -10,6 +10,7 @@ export RAY_memory_usage_threshold=0.99
 
 DATA_DIR="${DATA_DIR:-/mnt/data1/zar/finance/data/finance_finqa/grpo_nocalc}"
 BASE_MODEL="${BASE_MODEL:-/mnt/data1/zar/search-1/Search-R1/verl_checkpoints/finqa-phase4-grpo-v3-stable/actor/global_step_200}"
+ACTOR_INIT_MODEL="${ACTOR_INIT_MODEL:-null}"
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-finqa-phase5-v2-smoke}"
 WAND_PROJECT="${WAND_PROJECT:-Finance_Agent}"
 CHECKPOINT_DIR="${CHECKPOINT_DIR:-verl_checkpoints/$EXPERIMENT_NAME}"
@@ -58,6 +59,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     data.shuffle_train_dataloader=true \
     algorithm.adv_estimator=grpo \
     actor_rollout_ref.model.path="$BASE_MODEL" \
+    actor_rollout_ref.model.actor_init_path="$ACTOR_INIT_MODEL" \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
     actor_rollout_ref.model.use_remove_padding=true \
     actor_rollout_ref.actor.optim.lr="$ACTOR_LR" \

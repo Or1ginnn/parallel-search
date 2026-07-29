@@ -225,7 +225,7 @@ tests/test_finqa_v2_reward.py
 
 本地已通过 8 项 reward 单测、Python 编译、shell 语法和 `git diff --check`。下一步
 先运行 10-step A800 smoke，验收新增指标有变化、hard-zero 正常、KL 与梯度有限；
-smoke 通过后从 Step200 启动最长 200-step V2 实验，由人工根据每 50 steps 的验证
+smoke 通过后从 Step200 启动首轮 200-step V2 实验，由人工根据每 50 steps 的验证
 趋势决定是否提前停止。
 
 两个训练入口已同时纠正初始化口径：`BASE_MODEL` 默认指向 Phase 4 最佳
@@ -233,5 +233,12 @@ smoke 通过后从 Step200 启动最长 200-step V2 实验，由人工根据每 
 错误地从 merged-v3 或历史 Step50 开始。checkpoint 恢复为 LiteCoA 的轻量保存方式，
 只保存 Actor 模型权重、配置和 tokenizer，不保存 optimizer、scheduler、RNG 或数据
 游标，也不支持原地续训。smoke 使用与正式实验一致的 2 卡、batch 32、
-每题 5 条采样、temperature 1.0；正式 V2 默认上限为 200 steps，Step 0 先验证一次，
+每题 5 条采样、temperature 1.0；首轮 V2 上限为 200 steps，Step 0 先验证一次，
 之后保持每 50 steps 验证和保存。
+
+首轮 V2 在 Step200 被固定上限终止。W&B `0bokv2n0` 显示验证分数从 Step100 的
+50.94% 回升到 Step150 的 52.81% 和 Step200 的 54.38%，最后 25 步训练 Numeric
+EM 均值升至 59.88%，因此 200-step 上限过早。后续入口默认改为 2000-step 安全上限
+并由人工停止，warmup 调整为 10 步（ratio 0.005）。`ACTOR_INIT_MODEL` 只加载 V2
+Step200 的 Actor 权重，`BASE_MODEL` 仍指向 Phase 4 Step200 参考策略；optimizer、
+scheduler 和步数从零初始化，checkpoint 继续只保存模型与 tokenizer。
