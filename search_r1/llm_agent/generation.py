@@ -22,6 +22,12 @@ class GenerationConfig:
     search_url: str = None
     topk: int = 3
     max_queries_per_turn: int = 3
+    collect_eitr_probes: bool = False
+    eitr_probe_count: int = 4
+    eitr_n_agent: int = 1
+    eitr_probe_oversample: int = 2
+    eitr_max_query_tokens: int = 96
+    eitr_probe_seed: int = 20260805
 
 class LLMGenerationManager:
     def __init__(
@@ -35,6 +41,7 @@ class LLMGenerationManager:
         self.actor_rollout_wg = actor_rollout_wg
         self.config = config
         self.is_validation = is_validation
+        self._eitr_probe_call_index = 0
 
         self.tensor_fn = TensorHelper(TensorConfig(
             pad_token_id=tokenizer.pad_token_id,
@@ -204,6 +211,7 @@ class LLMGenerationManager:
             padded_batch[k] = torch.cat([v, pad_sequence], dim=0)
 
         padded_active_batch = DataProto.from_dict(padded_batch)
+        padded_active_batch.meta_info.update(active_batch.meta_info)
         for key in padded_active_batch.batch.keys():
             padded_active_batch.batch[key] = padded_active_batch.batch[key].long()
 
@@ -238,6 +246,16 @@ class LLMGenerationManager:
         valid_search_stats = torch.zeros(gen_batch.batch['input_ids'].shape[0], dtype=torch.int)
         active_num_list = [active_mask.sum().item()]
         rollings = gen_batch
+        self._eitr_first_search_records = (
+            [None] * gen_batch.batch['input_ids'].shape[0]
+            if self.config.collect_eitr_probes
+            else None
+        )
+        self._eitr_probe_groups = (
+            [None] * gen_batch.batch['input_ids'].shape[0]
+            if self.config.collect_eitr_probes
+            else None
+        )
 
         # Main generation loop
         for step in range(self.config.max_turns):
@@ -255,6 +273,11 @@ class LLMGenerationManager:
             gen_output = self._generate_with_gpu_padding(rollings_active)
 
             meta_info = gen_output.meta_info            
+            raw_responses_ids = (
+                gen_output.batch['responses'].detach().cpu()
+                if self.config.collect_eitr_probes and step == 0
+                else None
+            )
             responses_ids, responses_str = self._postprocess_responses(gen_output.batch['responses'])
             responses_ids, responses_str = self.tensor_fn._example_level_pad(responses_ids, responses_str, active_mask)
 
@@ -262,6 +285,11 @@ class LLMGenerationManager:
             next_obs, dones, valid_action, is_search = self.execute_predictions(
                 responses_str, self.tokenizer.pad_token, active_mask
             )
+            if self.config.collect_eitr_probes and step == 0:
+                self._collect_eitr_same_state_probes(
+                    rollings=rollings,
+                    raw_responses_ids=raw_responses_ids,
+                )
             
             curr_active_mask = torch.tensor([not done for done in dones], dtype=torch.bool)
             active_mask = active_mask * curr_active_mask
@@ -322,6 +350,9 @@ class LLMGenerationManager:
         meta_info['active_mask'] = active_mask.tolist()
         meta_info['valid_action_stats'] = valid_action_stats.tolist()
         meta_info['valid_search_stats'] = valid_search_stats.tolist()
+        if self.config.collect_eitr_probes:
+            meta_info['eitr_first_search_records'] = self._eitr_first_search_records
+            meta_info['eitr_probe_groups'] = self._eitr_probe_groups
         
         print("ACTIVE_TRAJ_NUM:", active_num_list)
         
@@ -418,6 +449,13 @@ class LLMGenerationManager:
                             next_obs.append(
                                 f'\n\n{self._search_results2information(queries, cur_search_results).strip()}\n\n'
                             )
+                            if self.config.collect_eitr_probes:
+                                self._record_eitr_first_search(
+                                    index=i,
+                                    prediction=predictions[i],
+                                    queries=queries,
+                                    search_results=cur_search_results,
+                                )
                         else:
                             next_obs.append('')
                         dones.append(0)
@@ -441,6 +479,213 @@ If I want to give the final answer, I should put the answer between <answer> and
         assert search_result_offset == len(search_results)
             
         return next_obs, dones, valid_action, is_search
+
+    def _record_eitr_first_search(
+        self,
+        index: int,
+        prediction: str,
+        queries: List[str],
+        search_results: List[List[Dict[str, Any]]],
+    ) -> None:
+        """Cache a compact first-search record for Gate C probe estimation."""
+        records = getattr(self, '_eitr_first_search_records', None)
+        if records is None or records[index] is not None:
+            return
+        match = re.search(r'<search>(.*?)</search>', prediction, re.DOTALL)
+        if match is None:
+            return
+        action_text = prediction[:match.end()]
+        action_token_ids = self.tokenizer(
+            action_text,
+            add_special_tokens=False,
+        )['input_ids']
+        retrieval_effect = []
+        if len(queries) == 1 and search_results:
+            retrieval_effect = self._compact_retrieval_effect(search_results[0])
+        records[index] = {
+            'queries': list(queries),
+            'prefix_text': prediction[:match.start()],
+            'action_text': action_text,
+            'action_token_ids': list(action_token_ids),
+            'retrieval_effect': retrieval_effect,
+        }
+
+    @staticmethod
+    def _find_token_subsequence(values: List[int], pattern: List[int]) -> int:
+        if not pattern or len(pattern) > len(values):
+            return -1
+        for offset in range(len(values) - len(pattern) + 1):
+            if values[offset:offset + len(pattern)] == pattern:
+                return offset
+        return -1
+
+    def _collect_eitr_same_state_probes(
+        self,
+        rollings: DataProto,
+        raw_responses_ids: torch.Tensor,
+    ) -> None:
+        """Sample query-only probes from an identical prefix ending at <search>."""
+        if self._eitr_probe_groups is None:
+            return
+        probe_count = int(self.config.eitr_probe_count)
+        candidates_per_state = max(
+            probe_count - 1 + int(self.config.eitr_probe_oversample),
+            probe_count - 1,
+        )
+        n_agent = int(self.config.eitr_n_agent)
+        batch_size = raw_responses_ids.size(0)
+        if n_agent <= 0 or batch_size % n_agent != 0:
+            raise ValueError(
+                f'EITR expected rollout batch divisible by n_agent={n_agent}, got {batch_size}'
+            )
+
+        open_tag_ids = self.tokenizer('<search>', add_special_tokens=False)['input_ids']
+        close_tag_ids = self.tokenizer('</search>', add_special_tokens=False)['input_ids']
+        state_groups = []
+        for group_start in range(0, batch_size, n_agent):
+            source_index = None
+            normal_action_ids = None
+            state_prompt_ids = None
+            for candidate_index in range(group_start, group_start + n_agent):
+                record = self._eitr_first_search_records[candidate_index]
+                if not record or len(record.get('queries') or []) != 1:
+                    continue
+                generated_ids = raw_responses_ids[candidate_index].tolist()
+                open_offset = self._find_token_subsequence(generated_ids, open_tag_ids)
+                if open_offset < 0 or not record.get('retrieval_effect'):
+                    continue
+                open_end = open_offset + len(open_tag_ids)
+                close_relative_offset = self._find_token_subsequence(
+                    generated_ids[open_end:],
+                    close_tag_ids,
+                )
+                if close_relative_offset < 0:
+                    continue
+                close_end = open_end + close_relative_offset + len(close_tag_ids)
+                continuation_ids = generated_ids[open_end:close_end]
+                if not continuation_ids:
+                    continue
+                prompt_mask = rollings.batch['attention_mask'][candidate_index].bool()
+                base_prompt_ids = rollings.batch['input_ids'][candidate_index][prompt_mask].tolist()
+                fixed_prefix_ids = generated_ids[:open_end]
+                source_index = candidate_index
+                normal_action_ids = continuation_ids
+                state_prompt_ids = (base_prompt_ids + fixed_prefix_ids)[-self.config.max_prompt_length:]
+                break
+
+            if source_index is None:
+                continue
+            record = self._eitr_first_search_records[source_index]
+            group = {
+                'state_prompt_token_ids': state_prompt_ids,
+                'source_index': source_index,
+                'extra_retrieval_calls': 0,
+                'probes': [{
+                    'query': record['queries'][0],
+                    'action_token_ids': normal_action_ids,
+                    'retrieval_effect': record['retrieval_effect'],
+                }],
+            }
+            self._eitr_probe_groups[group_start] = group
+            state_groups.append((group_start, group))
+
+        if not state_groups or candidates_per_state <= 0:
+            return
+
+        repeated_state_ids = []
+        candidate_owners = []
+        for group_start, group in state_groups:
+            for _ in range(candidates_per_state):
+                repeated_state_ids.append(group['state_prompt_token_ids'])
+                candidate_owners.append(group_start)
+
+        max_state_length = max(len(item) for item in repeated_state_ids)
+        probe_input_ids = torch.full(
+            (len(repeated_state_ids), max_state_length),
+            self.tokenizer.pad_token_id,
+            dtype=torch.long,
+        )
+        probe_attention_mask = torch.zeros_like(probe_input_ids)
+        for index, token_ids in enumerate(repeated_state_ids):
+            length = len(token_ids)
+            probe_input_ids[index, -length:] = torch.tensor(token_ids, dtype=torch.long)
+            probe_attention_mask[index, -length:] = 1
+        probe_position_ids = self.tensor_fn.create_position_ids(probe_attention_mask)
+        probe_prompts = DataProto.from_dict({
+            'input_ids': probe_input_ids,
+            'attention_mask': probe_attention_mask,
+            'position_ids': probe_position_ids,
+        })
+        probe_prompts.meta_info.update({
+            'recompute_log_prob': False,
+            'sampling_params': {
+                'max_tokens': int(self.config.eitr_max_query_tokens),
+                'n': 1,
+                'seed': int(self.config.eitr_probe_seed + self._eitr_probe_call_index),
+            },
+        })
+        self._eitr_probe_call_index += 1
+        probe_outputs = self._generate_with_gpu_padding(probe_prompts)
+
+        valid_candidates = []
+        flat_queries = []
+        seen_queries_by_owner = {
+            owner: {group['probes'][0]['query'].strip().lower()}
+            for owner, group in state_groups
+        }
+        accepted_candidates_by_owner = defaultdict(int)
+        for owner, response in zip(candidate_owners, probe_outputs.batch['responses']):
+            if accepted_candidates_by_owner[owner] >= probe_count - 1:
+                continue
+            response_tokens = response.tolist()
+            close_offset = self._find_token_subsequence(response_tokens, close_tag_ids)
+            if close_offset < 0:
+                continue
+            action_ids = response_tokens[:close_offset + len(close_tag_ids)]
+            query_text = self.tokenizer.decode(
+                response_tokens[:close_offset],
+                skip_special_tokens=True,
+            )
+            query = ' '.join(query_text.strip().split())
+            if not query or '||' in query or '<' in query or '>' in query:
+                continue
+            query_key = query.lower()
+            if query_key in seen_queries_by_owner[owner]:
+                continue
+            seen_queries_by_owner[owner].add(query_key)
+            valid_candidates.append((owner, query, action_ids))
+            flat_queries.append(query)
+            accepted_candidates_by_owner[owner] += 1
+
+        retrieval_results = self.batch_search(flat_queries)
+        for (owner, query, action_ids), retrieval_result in zip(valid_candidates, retrieval_results):
+            group = self._eitr_probe_groups[owner]
+            group['extra_retrieval_calls'] += 1
+            if len(group['probes']) >= probe_count:
+                continue
+            effect = self._compact_retrieval_effect(retrieval_result)
+            if effect:
+                group['probes'].append({
+                    'query': query,
+                    'action_token_ids': action_ids,
+                    'retrieval_effect': effect,
+                })
+
+    @staticmethod
+    def _compact_retrieval_effect(retrieval_result: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        compact = []
+        for rank, item in enumerate(retrieval_result or []):
+            document = item.get('document') or {}
+            doc_id = document.get('id') or document.get('title') or document.get('contents')
+            if not doc_id:
+                continue
+            score = item.get('score')
+            try:
+                score = float(score)
+            except (TypeError, ValueError):
+                score = -float(rank)
+            compact.append({'doc_id': str(doc_id), 'score': score, 'rank': rank})
+        return compact
 
     def parse_search_queries(self, content: str) -> List[str]:
         """Parse one <search> action into one or more LiteCoA queries."""
